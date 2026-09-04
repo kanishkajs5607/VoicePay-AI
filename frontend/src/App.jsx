@@ -9,6 +9,7 @@ function App() {
 
   const [voiceText, setVoiceText] = useState("");
   const [isListening, setIsListening] = useState(false);
+  const [voiceLanguage, setVoiceLanguage] = useState("en-IN");
 
   const [result, setResult] = useState(null);
   const [createdInvoice, setCreatedInvoice] = useState(null);
@@ -137,7 +138,7 @@ function App() {
 
     const recognition = new SpeechRecognition();
 
-    recognition.lang = "en-IN";
+    recognition.lang = voiceLanguage;
     recognition.interimResults = false;
     recognition.continuous = true;
 
@@ -182,7 +183,7 @@ function App() {
 
     const recognition = new SpeechRecognition();
 
-    recognition.lang = "en-IN";
+    recognition.lang = voiceLanguage;
     recognition.interimResults = false;
     recognition.continuous = false;
 
@@ -453,11 +454,7 @@ function App() {
 
         {paymentPageLoading && <p>Loading payment details...</p>}
 
-        {error && (
-          <p style={{ color: "red" }}>
-            ❌ {error}
-          </p>
-        )}
+        {error && <p style={{ color: "red" }}>❌ {error}</p>}
 
         {paymentPageData && (
           <div>
@@ -469,13 +466,11 @@ function App() {
             </p>
 
             <p>
-              Customer:{" "}
-              <strong>{paymentPageData.customer}</strong>
+              Customer: <strong>{paymentPageData.customer}</strong>
             </p>
 
             <p>
-              Amount:{" "}
-              <strong>₹{paymentPageData.amount}</strong>
+              Amount: <strong>₹{paymentPageData.amount}</strong>
             </p>
 
             {paymentPageData.payment_status === "pending" ? (
@@ -488,14 +483,14 @@ function App() {
                   💳 Pay Now
                 </button>
 
-                <p>
-                  ⚠️ Demo mode — no real money will be charged.
-                </p>
+                <p>⚠️ Demo mode — no real money will be charged.</p>
               </>
             ) : (
               <>
                 <h2>✅ Payment Successful</h2>
-                <p>Status: <strong>Paid</strong></p>
+                <p>
+                  Status: <strong>Paid</strong>
+                </p>
                 <p>Payment has been recorded in VoicePay AI.</p>
                 <p>No real money was charged.</p>
               </>
@@ -516,6 +511,23 @@ function App() {
 
       <p>
         Voice assistant for invoices, payments and business insights.
+      </p>
+
+      <h3>Voice Language</h3>
+
+      <select
+        value={voiceLanguage}
+        onChange={(e) => setVoiceLanguage(e.target.value)}
+      >
+        <option value="en-IN">🇬🇧 English</option>
+        <option value="ta-IN">🇮🇳 தமிழ் (Tamil)</option>
+      </select>
+
+      <p>
+        Selected:{" "}
+        <strong>
+          {voiceLanguage === "ta-IN" ? "Tamil" : "English"}
+        </strong>
       </p>
 
       <hr />
@@ -545,10 +557,8 @@ function App() {
           <div key={invoice.invoice_id}>
             <p>
               <strong>{invoice.customer}</strong>
-              {" — "}
-              ₹{invoice.total}
-              {" — "}
-              {invoice.invoice_id}
+              {" — "}₹{invoice.total}
+              {" — "}{invoice.invoice_id}
             </p>
 
             <button
@@ -646,7 +656,7 @@ function App() {
 
       <input
         type="text"
-        placeholder="Try: Create invoice for Arun, 2 notebooks at 100 rupees GST 18"
+        placeholder="Speak or type your invoice command"
         value={voiceText}
         onChange={(e) => setVoiceText(e.target.value)}
         style={{ width: "500px" }}
@@ -717,11 +727,7 @@ function App() {
         Preview Invoice
       </button>
 
-      {error && (
-        <p style={{ color: "red" }}>
-          ❌ {error}
-        </p>
-      )}
+      {error && <p style={{ color: "red" }}>❌ {error}</p>}
 
       {result && (
         <div>
