@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 function App() {
   const [customer, setCustomer] = useState("");
@@ -13,12 +13,19 @@ function App() {
   const [result, setResult] = useState(null);
   const [createdInvoice, setCreatedInvoice] = useState(null);
   const [paymentLink, setPaymentLink] = useState(null);
+
+  const [paymentPageData, setPaymentPageData] = useState(null);
+  const [paymentPageLoading, setPaymentPageLoading] = useState(false);
+
   const [error, setError] = useState("");
 
-  const [mockPaymentStatus, setMockPaymentStatus] =
-    useState("pending");
-
   const currentPath = window.location.pathname;
+
+  const isPaymentPage = currentPath.startsWith("/pay/");
+
+  const paymentLinkId = isPaymentPage
+    ? currentPath.split("/pay/")[1]
+    : null;
 
   const invoiceData = {
     customer,
@@ -27,6 +34,38 @@ function App() {
     price: Number(price),
     gst: Number(gst),
   };
+
+  useEffect(() => {
+    if (!paymentLinkId) {
+      return;
+    }
+
+    const loadPaymentDetails = async () => {
+      setPaymentPageLoading(true);
+      setError("");
+
+      try {
+        const response = await fetch(
+          `http://127.0.0.1:8000/payment-link/${paymentLinkId}`
+        );
+
+        const data = await response.json();
+
+        if (data.error) {
+          setError(data.error);
+          return;
+        }
+
+        setPaymentPageData(data);
+      } catch {
+        setError("Unable to load payment details.");
+      } finally {
+        setPaymentPageLoading(false);
+      }
+    };
+
+    loadPaymentDetails();
+  }, [paymentLinkId]);
 
   const startListening = () => {
     setError("");
@@ -209,55 +248,101 @@ function App() {
     }
   };
 
-  const handleMockPayment = () => {
-    setMockPaymentStatus("paid");
+  const handleMockPayment = async () => {
+    setError("");
+
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:8000/payment-link/${paymentLinkId}/pay`,
+        {
+          method: "POST",
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.error) {
+        setError(data.error);
+        return;
+      }
+
+      setPaymentPageData((previous) => ({
+        ...previous,
+        payment_status: "paid",
+      }));
+    } catch {
+      setError("Unable to complete payment.");
+    }
   };
 
-  if (currentPath.startsWith("/pay/")) {
-    const paymentLinkId = currentPath.split("/pay/")[1];
-
+  if (isPaymentPage) {
     return (
       <div>
         <h1>VoicePay Payment</h1>
 
         <p>Demo payment page for Razorpay mock mode.</p>
 
-        <h2>Payment Request</h2>
+        {paymentPageLoading && <p>Loading payment details...</p>}
 
-        <p>
-          Payment Link ID: <strong>{paymentLinkId}</strong>
-        </p>
+        {error && (
+          <p style={{ color: "red" }}>
+            ❌ {error}
+          </p>
+        )}
 
-        {mockPaymentStatus === "pending" ? (
-          <>
-            <p>
-              Status: <strong>Pending</strong>
-            </p>
-
-            <button onClick={handleMockPayment}>
-              💳 Pay Now
-            </button>
+        {paymentPageData && (
+          <div>
+            <h2>Payment Request</h2>
 
             <p>
-              ⚠️ Demo mode — no real money will be charged.
-            </p>
-          </>
-        ) : (
-          <>
-            <h2>✅ Payment Successful</h2>
-
-            <p>
-              Status: <strong>Paid</strong>
+              Payment Link ID:{" "}
+              <strong>
+                {paymentPageData.payment_link_id}
+              </strong>
             </p>
 
             <p>
-              Mock payment completed successfully.
+              Customer:{" "}
+              <strong>{paymentPageData.customer}</strong>
             </p>
 
             <p>
-              No real money was charged.
+              Amount:{" "}
+              <strong>₹{paymentPageData.amount}</strong>
             </p>
-          </>
+
+            {paymentPageData.payment_status === "pending" ? (
+              <>
+                <p>
+                  Status: <strong>Pending</strong>
+                </p>
+
+                <button onClick={handleMockPayment}>
+                  💳 Pay Now
+                </button>
+
+                <p>
+                  ⚠️ Demo mode — no real money will be charged.
+                </p>
+              </>
+            ) : (
+              <>
+                <h2>✅ Payment Successful</h2>
+
+                <p>
+                  Status: <strong>Paid</strong>
+                </p>
+
+                <p>
+                  Payment has been recorded in VoicePay AI.
+                </p>
+
+                <p>
+                  No real money was charged.
+                </p>
+              </>
+            )}
+          </div>
         )}
       </div>
     );
@@ -414,7 +499,8 @@ function App() {
           <h3>💳 Payment Link Created</h3>
 
           <p>
-            Payment Link ID: {paymentLink.payment_link_id}
+            Payment Link ID:{" "}
+            {paymentLink.payment_link_id}
           </p>
 
           <p>Amount: ₹{paymentLink.amount}</p>
