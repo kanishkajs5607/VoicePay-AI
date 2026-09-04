@@ -329,8 +329,6 @@ function App() {
           },
           body: JSON.stringify({
             invoice_id: createdInvoice.invoice_id,
-            customer: createdInvoice.customer,
-            amount: createdInvoice.total,
           }),
         }
       );

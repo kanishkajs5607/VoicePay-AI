@@ -122,8 +122,6 @@ class VoiceCommand(BaseModel):
 
 class PaymentLinkRequest(BaseModel):
     invoice_id: str
-    customer: str
-    amount: float
 
 
 class BusinessQuery(BaseModel):
@@ -380,10 +378,6 @@ def business_query(query: BusinessQuery):
 
     connection = get_db_connection()
 
-    # --------------------------------------------------
-    # PENDING PAYMENT QUERY
-    # --------------------------------------------------
-
     english_pending_phrases = [
         "who hasn't paid",
         "who has not paid",
@@ -483,10 +477,6 @@ def business_query(query: BusinessQuery):
             "invoices": pending_list
         }
 
-    # --------------------------------------------------
-    # TOTAL COLLECTED QUERY
-    # --------------------------------------------------
-
     english_collection_phrases = [
         "how much did i collect",
         "how much have i collected",
@@ -559,10 +549,6 @@ def business_query(query: BusinessQuery):
             "paid_invoices": paid_count
         }
 
-    # --------------------------------------------------
-    # UNKNOWN QUERY
-    # --------------------------------------------------
-
     connection.close()
 
     if is_tamil:
@@ -581,6 +567,7 @@ def business_query(query: BusinessQuery):
             "How much did I collect?"
         ]
     }
+
 
 # --------------------------------------------------
 # REMINDER
@@ -627,9 +614,7 @@ def create_reminder(request: ReminderRequest):
             f"{payment_link['payment_link_id']}"
         )
     else:
-        payment_url = (
-            "Payment link has not been generated yet."
-        )
+        payment_url = "Payment link has not been generated yet."
 
     message = (
         f"Hi {invoice['customer']}, this is a friendly reminder "
@@ -725,11 +710,7 @@ def parse_tamil_invoice(original_text):
         .replace("%", " %")
     )
 
-    text = re.sub(
-        r"\s+",
-        " ",
-        text
-    ).strip()
+    text = re.sub(r"\s+", " ", text).strip()
 
     gst_match = re.search(
         r"(?:ஜிஎஸ்டி|GST)\s*\.?\s*"
@@ -748,20 +729,13 @@ def parse_tamil_invoice(original_text):
 
     if not gst_match:
         return {
-            "error": (
-                "Could not identify GST "
-                "from Tamil command"
-            ),
+            "error": "Could not identify GST from Tamil command",
             "heard": original_text
         }
 
-    gst = float(
-        gst_match.group(1)
-    )
+    gst = float(gst_match.group(1))
 
-    before_gst = text[
-        :gst_match.start()
-    ].strip()
+    before_gst = text[:gst_match.start()].strip()
 
     price_match = re.search(
         r"₹?\s*(\d+(?:\.\d+)?)\s*"
@@ -772,16 +746,11 @@ def parse_tamil_invoice(original_text):
 
     if not price_match:
         return {
-            "error": (
-                "Could not identify price "
-                "from Tamil command"
-            ),
+            "error": "Could not identify price from Tamil command",
             "heard": original_text
         }
 
-    price = float(
-        price_match.group(1)
-    )
+    price = float(price_match.group(1))
 
     before_price = before_gst[
         :price_match.start()
@@ -809,23 +778,15 @@ def parse_tamil_invoice(original_text):
         }
 
     quantity_text = item_match.group(1)
-
-    quantity = tamil_number_to_int(
-        quantity_text
-    )
+    quantity = tamil_number_to_int(quantity_text)
 
     if quantity is None:
         return {
-            "error": (
-                "Could not understand "
-                "Tamil quantity"
-            ),
+            "error": "Could not understand Tamil quantity",
             "heard": original_text
         }
 
-    product = item_match.group(2).strip(
-        " .,-"
-    )
+    product = item_match.group(2).strip(" .,-")
 
     customer_section = before_price[
         :item_match.start()
@@ -837,16 +798,11 @@ def parse_tamil_invoice(original_text):
         customer_section
     )
 
-    customer = clean_tamil_customer(
-        customer_section
-    )
+    customer = clean_tamil_customer(customer_section)
 
     if not customer:
         return {
-            "error": (
-                "Could not identify customer "
-                "from Tamil command"
-            ),
+            "error": "Could not identify customer from Tamil command",
             "heard": original_text
         }
 
@@ -882,13 +838,11 @@ def parse_voice_command(command: VoiceCommand):
             "error": "Voice command is empty"
         }
 
-    # Tamil commands continue to use the Tamil parser
     if contains_tamil(original_text):
         return parse_tamil_invoice(original_text)
 
     text = original_text.lower()
 
-    # Remove common punctuation and currency words
     text = (
         text
         .replace(",", " ")
@@ -905,7 +859,6 @@ def parse_voice_command(command: VoiceCommand):
 
     text = re.sub(r"\s+", " ", text).strip()
 
-    # Remove common beginning phrases
     text = re.sub(
         r"^(please\s+)?"
         r"(create\s+)?"
@@ -915,10 +868,6 @@ def parse_voice_command(command: VoiceCommand):
         text,
         flags=re.IGNORECASE
     )
-
-    # --------------------------------------------------
-    # FIND GST
-    # --------------------------------------------------
 
     gst_match = re.search(
         r"\bgst\s*(?:of\s*)?(\d+(?:\.\d+)?)",
@@ -948,10 +897,6 @@ def parse_voice_command(command: VoiceCommand):
         before_gst = text[
             :gst_reverse_match.start()
         ].strip()
-
-    # --------------------------------------------------
-    # FIND PRICE
-    # --------------------------------------------------
 
     price_match = re.search(
         r"\b(?:at|for|price|cost|costing)\s+"
@@ -984,10 +929,6 @@ def parse_voice_command(command: VoiceCommand):
             :price_match.start()
         ].strip()
 
-    # --------------------------------------------------
-    # FIND QUANTITY
-    # --------------------------------------------------
-
     quantity_match = re.search(
         r"\b(\d+)\b",
         before_price
@@ -1001,17 +942,14 @@ def parse_voice_command(command: VoiceCommand):
 
     quantity = int(quantity_match.group(1))
 
-    # Everything before quantity = customer
     customer_text = before_price[
         :quantity_match.start()
     ].strip()
 
-    # Everything after quantity = product
     product_text = before_price[
         quantity_match.end():
     ].strip()
 
-    # Remove optional filler words
     customer_text = re.sub(
         r"\b(for|to)\s*$",
         "",
@@ -1038,10 +976,7 @@ def parse_voice_command(command: VoiceCommand):
             "heard": original_text
         }
 
-    # Capitalize every word in the customer name
     customer = customer_text.title()
-
-    # Preserve multi-word product
     product = product_text
 
     add_audit_log(
@@ -1061,31 +996,17 @@ def parse_voice_command(command: VoiceCommand):
         "status": "parsed"
     }
 
+
 # --------------------------------------------------
-# PAYMENT LINK
+# CREATE PAYMENT LINK
 # --------------------------------------------------
 
 @app.post("/payment-link/create")
-def create_payment_link(
-    request: PaymentLinkRequest
-):
+def create_payment_link(request: PaymentLinkRequest):
 
     if not request.invoice_id.strip():
         return {
             "error": "Invoice ID is required"
-        }
-
-    if not request.customer.strip():
-        return {
-            "error": "Customer name is required"
-        }
-
-    if request.amount <= 0:
-        return {
-            "error": (
-                "Payment amount must "
-                "be greater than 0"
-            )
         }
 
     connection = get_db_connection()
@@ -1106,14 +1027,15 @@ def create_payment_link(
             "error": "Invoice not found"
         }
 
+    customer = invoice["customer"]
+    amount = invoice["total"]
+
     payment_link_id = (
         "plink_"
         + str(uuid.uuid4())[:10]
     )
 
-    created_at = (
-        datetime.now().isoformat()
-    )
+    created_at = datetime.now().isoformat()
 
     connection.execute(
         """
@@ -1130,8 +1052,8 @@ def create_payment_link(
         (
             payment_link_id,
             request.invoice_id,
-            request.customer,
-            request.amount,
+            customer,
+            amount,
             "pending",
             created_at
         )
@@ -1149,15 +1071,16 @@ def create_payment_link(
         "payment_link_created",
         (
             f"Payment link {payment_link_id} created "
-            f"for invoice {request.invoice_id}"
+            f"for invoice {request.invoice_id} "
+            f"for ₹{amount:.2f}"
         )
     )
 
     return {
         "payment_link_id": payment_link_id,
         "invoice_id": request.invoice_id,
-        "customer": request.customer,
-        "amount": request.amount,
+        "customer": customer,
+        "amount": amount,
         "payment_url": mock_payment_url,
         "payment_status": "pending",
         "provider": "razorpay_mock",
@@ -1171,9 +1094,7 @@ def create_payment_link(
 # --------------------------------------------------
 
 @app.get("/payment-link/{payment_link_id}")
-def get_payment_link(
-    payment_link_id: str
-):
+def get_payment_link(payment_link_id: str):
 
     connection = get_db_connection()
 
@@ -1200,12 +1121,8 @@ def get_payment_link(
 # COMPLETE MOCK PAYMENT
 # --------------------------------------------------
 
-@app.post(
-    "/payment-link/{payment_link_id}/pay"
-)
-def complete_mock_payment(
-    payment_link_id: str
-):
+@app.post("/payment-link/{payment_link_id}/pay")
+def complete_mock_payment(payment_link_id: str):
 
     connection = get_db_connection()
 
