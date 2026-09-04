@@ -8,11 +8,21 @@ function App() {
   const [gst, setGst] = useState("");
 
   const [result, setResult] = useState(null);
+  const [createdInvoice, setCreatedInvoice] = useState(null);
   const [error, setError] = useState("");
 
-  const handleConfirm = async () => {
+  const invoiceData = {
+    customer,
+    product,
+    quantity: Number(quantity),
+    price: Number(price),
+    gst: Number(gst),
+  };
+
+  const handlePreview = async () => {
     setError("");
     setResult(null);
+    setCreatedInvoice(null);
 
     try {
       const response = await fetch(
@@ -22,13 +32,7 @@ function App() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            customer,
-            product,
-            quantity: Number(quantity),
-            price: Number(price),
-            gst: Number(gst),
-          }),
+          body: JSON.stringify(invoiceData),
         }
       );
 
@@ -42,6 +46,34 @@ function App() {
       setResult(data);
     } catch (err) {
       setError("Unable to connect to backend.");
+    }
+  };
+
+  const handleCreate = async () => {
+    setError("");
+
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:8000/invoice/create",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(invoiceData),
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.error) {
+        setError(data.error);
+        return;
+      }
+
+      setCreatedInvoice(data);
+    } catch (err) {
+      setError("Unable to create invoice.");
     }
   };
 
@@ -102,8 +134,8 @@ function App() {
 
       <br /><br />
 
-      <button onClick={handleConfirm}>
-        Confirm Invoice
+      <button onClick={handlePreview}>
+        Preview Invoice
       </button>
 
       {error && (
@@ -127,9 +159,19 @@ function App() {
             <strong>Total: ₹{result.total}</strong>
           </p>
 
-          <p>
-            ✅ Backend status: {result.status}
-          </p>
+          <button onClick={handleCreate}>
+            Confirm & Create Invoice
+          </button>
+        </div>
+      )}
+
+      {createdInvoice && (
+        <div>
+          <h3>✅ Invoice Created</h3>
+          <p>Invoice ID: {createdInvoice.invoice_id}</p>
+          <p>Customer: {createdInvoice.customer}</p>
+          <p>Total: ₹{createdInvoice.total}</p>
+          <p>Payment Status: {createdInvoice.payment_status}</p>
         </div>
       )}
     </div>
