@@ -15,6 +15,8 @@ function App() {
   const [paymentLink, setPaymentLink] = useState(null);
   const [error, setError] = useState("");
 
+  const currentPath = window.location.pathname;
+
   const invoiceData = {
     customer,
     product,
@@ -200,6 +202,41 @@ function App() {
     }
   };
 
+  if (currentPath.startsWith("/pay/")) {
+    const paymentLinkId = currentPath.split("/pay/")[1];
+
+    return (
+      <div>
+        <h1>VoicePay Payment</h1>
+
+        <p>
+          Demo payment page for Razorpay mock mode.
+        </p>
+
+        <h2>Payment Request</h2>
+
+        <p>
+          Payment Link ID: {paymentLinkId}
+        </p>
+
+        <p>
+          Status: Pending
+        </p>
+
+        <button>
+          💳 Pay Now
+        </button>
+
+        <br />
+        <br />
+
+        <p>
+          ⚠️ Demo mode — no real money will be charged.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div>
       <h1>VoicePay AI</h1>
@@ -211,7 +248,9 @@ function App() {
       <h2>AI Voice Command</h2>
 
       <button onClick={startListening}>
-        {isListening ? "🎤 Listening..." : "🎤 Start Voice Command"}
+        {isListening
+          ? "🎤 Listening..."
+          : "🎤 Start Voice Command"}
       </button>
 
       <br />
@@ -321,10 +360,21 @@ function App() {
         <div>
           <h3>✅ Invoice Created</h3>
 
-          <p>Invoice ID: {createdInvoice.invoice_id}</p>
-          <p>Customer: {createdInvoice.customer}</p>
-          <p>Total: ₹{createdInvoice.total}</p>
-          <p>Payment Status: {createdInvoice.payment_status}</p>
+          <p>
+            Invoice ID: {createdInvoice.invoice_id}
+          </p>
+
+          <p>
+            Customer: {createdInvoice.customer}
+          </p>
+
+          <p>
+            Total: ₹{createdInvoice.total}
+          </p>
+
+          <p>
+            Payment Status: {createdInvoice.payment_status}
+          </p>
 
           <button onClick={handleGeneratePaymentLink}>
             Generate Payment Link
@@ -336,10 +386,21 @@ function App() {
         <div>
           <h3>💳 Payment Link Created</h3>
 
-          <p>Payment Link ID: {paymentLink.payment_link_id}</p>
-          <p>Amount: ₹{paymentLink.amount}</p>
-          <p>Status: {paymentLink.payment_status}</p>
-          <p>Provider: {paymentLink.provider}</p>
+          <p>
+            Payment Link ID: {paymentLink.payment_link_id}
+          </p>
+
+          <p>
+            Amount: ₹{paymentLink.amount}
+          </p>
+
+          <p>
+            Status: {paymentLink.payment_status}
+          </p>
+
+          <p>
+            Provider: {paymentLink.provider}
+          </p>
 
           <a
             href={paymentLink.payment_url}
