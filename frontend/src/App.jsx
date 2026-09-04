@@ -28,6 +28,7 @@ function App() {
 
   const [reminder, setReminder] = useState(null);
   const [error, setError] = useState("");
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const currentPath = window.location.pathname;
   const isPaymentPage = currentPath.startsWith("/pay/");
@@ -80,6 +81,21 @@ function App() {
       setAuditLogs(data.audit_logs || []);
     } catch {
       setError("Unable to load audit history.");
+    }
+  };
+
+  const handleRefreshDashboard = async () => {
+    setError("");
+    setIsRefreshing(true);
+
+    try {
+      await Promise.all([
+        loadDashboard(),
+        loadInvoices(),
+        loadAuditLogs(),
+      ]);
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -486,10 +502,13 @@ function App() {
             ) : (
               <>
                 <h2>✅ Payment Successful</h2>
+
                 <p>
                   Status: <strong>Paid</strong>
                 </p>
+
                 <p>Payment has been recorded in VoicePay AI.</p>
+
                 <p>No real money was charged.</p>
               </>
             )}
@@ -532,13 +551,42 @@ function App() {
 
       <h2>Business Dashboard</h2>
 
+      <button
+        onClick={handleRefreshDashboard}
+        disabled={isRefreshing}
+      >
+        {isRefreshing ? "🔄 Refreshing..." : "🔄 Refresh Dashboard"}
+      </button>
+
+      <br />
+      <br />
+
       {dashboard ? (
         <div>
-          <p>Total Invoices: <strong>{dashboard.total_invoices}</strong></p>
-          <p>Paid Invoices: <strong>{dashboard.paid_invoices}</strong></p>
-          <p>Pending Invoices: <strong>{dashboard.pending_invoices}</strong></p>
-          <p>Total Collected: <strong>₹{dashboard.total_collected}</strong></p>
-          <p>Pending Amount: <strong>₹{dashboard.pending_amount}</strong></p>
+          <p>
+            Total Invoices:{" "}
+            <strong>{dashboard.total_invoices}</strong>
+          </p>
+
+          <p>
+            Paid Invoices:{" "}
+            <strong>{dashboard.paid_invoices}</strong>
+          </p>
+
+          <p>
+            Pending Invoices:{" "}
+            <strong>{dashboard.pending_invoices}</strong>
+          </p>
+
+          <p>
+            Total Collected:{" "}
+            <strong>₹{dashboard.total_collected}</strong>
+          </p>
+
+          <p>
+            Pending Amount:{" "}
+            <strong>₹{dashboard.pending_amount}</strong>
+          </p>
         </div>
       ) : (
         <p>Loading dashboard...</p>
