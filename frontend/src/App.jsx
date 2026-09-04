@@ -19,17 +19,16 @@ function App() {
 
   const [dashboard, setDashboard] = useState(null);
   const [invoices, setInvoices] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
 
   const [businessQuery, setBusinessQuery] = useState("");
   const [businessAnswer, setBusinessAnswer] = useState(null);
   const [isBusinessListening, setIsBusinessListening] = useState(false);
 
   const [reminder, setReminder] = useState(null);
-
   const [error, setError] = useState("");
 
   const currentPath = window.location.pathname;
-
   const isPaymentPage = currentPath.startsWith("/pay/");
 
   const paymentLinkId = isPaymentPage
@@ -64,10 +63,22 @@ function App() {
       );
 
       const data = await response.json();
-
       setInvoices(data.invoices || []);
     } catch {
       setError("Unable to load invoices.");
+    }
+  };
+
+  const loadAuditLogs = async () => {
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:8000/audit"
+      );
+
+      const data = await response.json();
+      setAuditLogs(data.audit_logs || []);
+    } catch {
+      setError("Unable to load audit history.");
     }
   };
 
@@ -75,6 +86,7 @@ function App() {
     if (!isPaymentPage) {
       loadDashboard();
       loadInvoices();
+      loadAuditLogs();
     }
   }, [isPaymentPage]);
 
@@ -227,6 +239,8 @@ function App() {
       setQuantity(data.quantity.toString());
       setPrice(data.price.toString());
       setGst(data.gst.toString());
+
+      await loadAuditLogs();
     } catch {
       setError("Unable to process voice command.");
     }
@@ -290,6 +304,7 @@ function App() {
 
       await loadDashboard();
       await loadInvoices();
+      await loadAuditLogs();
     } catch {
       setError("Unable to create invoice.");
     }
@@ -327,6 +342,7 @@ function App() {
       }
 
       setPaymentLink(data);
+      await loadAuditLogs();
     } catch {
       setError("Unable to generate payment link.");
     }
@@ -390,6 +406,7 @@ function App() {
       }
 
       setBusinessAnswer(data);
+      await loadAuditLogs();
     } catch {
       setError("Unable to process business query.");
     }
@@ -421,6 +438,7 @@ function App() {
       }
 
       setReminder(data);
+      await loadAuditLogs();
     } catch {
       setError("Unable to prepare reminder.");
     }
@@ -506,21 +524,11 @@ function App() {
 
       {dashboard ? (
         <div>
-          <p>
-            Total Invoices: <strong>{dashboard.total_invoices}</strong>
-          </p>
-          <p>
-            Paid Invoices: <strong>{dashboard.paid_invoices}</strong>
-          </p>
-          <p>
-            Pending Invoices: <strong>{dashboard.pending_invoices}</strong>
-          </p>
-          <p>
-            Total Collected: <strong>₹{dashboard.total_collected}</strong>
-          </p>
-          <p>
-            Pending Amount: <strong>₹{dashboard.pending_amount}</strong>
-          </p>
+          <p>Total Invoices: <strong>{dashboard.total_invoices}</strong></p>
+          <p>Paid Invoices: <strong>{dashboard.paid_invoices}</strong></p>
+          <p>Pending Invoices: <strong>{dashboard.pending_invoices}</strong></p>
+          <p>Total Collected: <strong>₹{dashboard.total_collected}</strong></p>
+          <p>Pending Amount: <strong>₹{dashboard.pending_amount}</strong></p>
         </div>
       ) : (
         <p>Loading dashboard...</p>
@@ -768,6 +776,31 @@ function App() {
             Open Payment Link
           </a>
         </div>
+      )}
+
+      <hr />
+
+      <h2>Activity History</h2>
+
+      {auditLogs.length === 0 ? (
+        <p>No activity recorded yet.</p>
+      ) : (
+        auditLogs.map((log) => (
+          <div key={log.id}>
+            <p>
+              <strong>{log.action}</strong>
+              {" — "}
+              {log.details}
+            </p>
+
+            <small>
+              {new Date(log.created_at).toLocaleString()}
+            </small>
+
+            <br />
+            <br />
+          </div>
+        ))
       )}
     </div>
   );
