@@ -18,10 +18,13 @@ function App() {
   const [paymentPageLoading, setPaymentPageLoading] = useState(false);
 
   const [dashboard, setDashboard] = useState(null);
+  const [invoices, setInvoices] = useState([]);
 
   const [businessQuery, setBusinessQuery] = useState("");
   const [businessAnswer, setBusinessAnswer] = useState(null);
   const [isBusinessListening, setIsBusinessListening] = useState(false);
+
+  const [reminder, setReminder] = useState(null);
 
   const [error, setError] = useState("");
 
@@ -48,16 +51,30 @@ function App() {
       );
 
       const data = await response.json();
-
       setDashboard(data);
     } catch {
       setError("Unable to load dashboard.");
     }
   };
 
+  const loadInvoices = async () => {
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:8000/invoices"
+      );
+
+      const data = await response.json();
+
+      setInvoices(data.invoices || []);
+    } catch {
+      setError("Unable to load invoices.");
+    }
+  };
+
   useEffect(() => {
     if (!isPaymentPage) {
       loadDashboard();
+      loadInvoices();
     }
   }, [isPaymentPage]);
 
@@ -127,9 +144,7 @@ function App() {
     };
 
     recognition.onerror = () => {
-      setError(
-        "Could not recognize your voice. Please try again."
-      );
+      setError("Could not recognize your voice. Please try again.");
       setIsListening(false);
     };
 
@@ -165,14 +180,11 @@ function App() {
 
     recognition.onresult = (event) => {
       const transcript = event.results[0][0].transcript;
-
       setBusinessQuery(transcript);
     };
 
     recognition.onerror = () => {
-      setError(
-        "Could not recognize your business question."
-      );
+      setError("Could not recognize your business question.");
       setIsBusinessListening(false);
     };
 
@@ -277,6 +289,7 @@ function App() {
       setCreatedInvoice(data);
 
       await loadDashboard();
+      await loadInvoices();
     } catch {
       setError("Unable to create invoice.");
     }
@@ -382,6 +395,37 @@ function App() {
     }
   };
 
+  const handleReminder = async (invoiceId) => {
+    setError("");
+    setReminder(null);
+
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:8000/reminder/create",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            invoice_id: invoiceId,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.error) {
+        setError(data.error);
+        return;
+      }
+
+      setReminder(data);
+    } catch {
+      setError("Unable to prepare reminder.");
+    }
+  };
+
   if (isPaymentPage) {
     return (
       <div>
@@ -433,15 +477,8 @@ function App() {
             ) : (
               <>
                 <h2>✅ Payment Successful</h2>
-
-                <p>
-                  Status: <strong>Paid</strong>
-                </p>
-
-                <p>
-                  Payment has been recorded in VoicePay AI.
-                </p>
-
+                <p>Status: <strong>Paid</strong></p>
+                <p>Payment has been recorded in VoicePay AI.</p>
                 <p>No real money was charged.</p>
               </>
             )}
@@ -450,6 +487,10 @@ function App() {
       </div>
     );
   }
+
+  const pendingInvoices = invoices.filter(
+    (invoice) => invoice.payment_status === "pending"
+  );
 
   return (
     <div>
@@ -466,32 +507,68 @@ function App() {
       {dashboard ? (
         <div>
           <p>
-            Total Invoices:{" "}
-            <strong>{dashboard.total_invoices}</strong>
+            Total Invoices: <strong>{dashboard.total_invoices}</strong>
           </p>
-
           <p>
-            Paid Invoices:{" "}
-            <strong>{dashboard.paid_invoices}</strong>
+            Paid Invoices: <strong>{dashboard.paid_invoices}</strong>
           </p>
-
           <p>
-            Pending Invoices:{" "}
-            <strong>{dashboard.pending_invoices}</strong>
+            Pending Invoices: <strong>{dashboard.pending_invoices}</strong>
           </p>
-
           <p>
-            Total Collected:{" "}
-            <strong>₹{dashboard.total_collected}</strong>
+            Total Collected: <strong>₹{dashboard.total_collected}</strong>
           </p>
-
           <p>
-            Pending Amount:{" "}
-            <strong>₹{dashboard.pending_amount}</strong>
+            Pending Amount: <strong>₹{dashboard.pending_amount}</strong>
           </p>
         </div>
       ) : (
         <p>Loading dashboard...</p>
+      )}
+
+      <hr />
+
+      <h2>Pending Payments</h2>
+
+      {pendingInvoices.length === 0 ? (
+        <p>No pending payments 🎉</p>
+      ) : (
+        pendingInvoices.map((invoice) => (
+          <div key={invoice.invoice_id}>
+            <p>
+              <strong>{invoice.customer}</strong>
+              {" — "}
+              ₹{invoice.total}
+              {" — "}
+              {invoice.invoice_id}
+            </p>
+
+            <button
+              onClick={() => handleReminder(invoice.invoice_id)}
+            >
+              🔔 Prepare Reminder
+            </button>
+
+            <br />
+            <br />
+          </div>
+        ))
+      )}
+
+      {reminder && (
+        <div>
+          <h3>🔔 Payment Reminder</h3>
+
+          <p>{reminder.message}</p>
+
+          <button
+            onClick={() =>
+              navigator.clipboard.writeText(reminder.message)
+            }
+          >
+            📋 Copy Reminder
+          </button>
+        </div>
       )}
 
       <hr />
@@ -536,12 +613,10 @@ function App() {
                 <h4>Pending Invoices</h4>
 
                 {businessAnswer.invoices.map((invoice) => (
-                  <div key={invoice.invoice_id}>
-                    <p>
-                      {invoice.customer} — ₹{invoice.total} —{" "}
-                      {invoice.payment_status}
-                    </p>
-                  </div>
+                  <p key={invoice.invoice_id}>
+                    {invoice.customer} — ₹{invoice.total} —{" "}
+                    {invoice.payment_status}
+                  </p>
                 ))}
               </div>
             )}
@@ -680,10 +755,7 @@ function App() {
         <div>
           <h3>💳 Payment Link Created</h3>
 
-          <p>
-            Payment Link ID: {paymentLink.payment_link_id}
-          </p>
-
+          <p>Payment Link ID: {paymentLink.payment_link_id}</p>
           <p>Amount: ₹{paymentLink.amount}</p>
           <p>Status: {paymentLink.payment_status}</p>
           <p>Provider: {paymentLink.provider}</p>
