@@ -4,17 +4,25 @@ import "./App.css";
 const API_URL = "http://127.0.0.1:8000";
 
 function App() {
+  const [started, setStarted] = useState(
+    sessionStorage.getItem("voicepay_started") === "true"
+  );
+
+  const [dashboardOpen, setDashboardOpen] = useState(false);
+  const [activeDashboardTab, setActiveDashboardTab] =
+    useState("overview");
+
+  const [voiceLanguage, setVoiceLanguage] = useState("en-IN");
+  const [voiceText, setVoiceText] = useState("");
+  const [isListening, setIsListening] = useState(false);
+
   const [customer, setCustomer] = useState("");
   const [product, setProduct] = useState("");
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
   const [gst, setGst] = useState("");
 
-  const [voiceText, setVoiceText] = useState("");
-  const [voiceLanguage, setVoiceLanguage] = useState("en-IN");
-  const [isListening, setIsListening] = useState(false);
-
-  const [result, setResult] = useState(null);
+  const [preview, setPreview] = useState(null);
   const [createdInvoice, setCreatedInvoice] = useState(null);
   const [paymentLink, setPaymentLink] = useState(null);
 
@@ -24,14 +32,17 @@ function App() {
 
   const [businessQuery, setBusinessQuery] = useState("");
   const [businessAnswer, setBusinessAnswer] = useState(null);
-  const [isBusinessListening, setIsBusinessListening] = useState(false);
+  const [isBusinessListening, setIsBusinessListening] =
+    useState(false);
 
   const [reminder, setReminder] = useState(null);
-  const [error, setError] = useState("");
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [paymentPageData, setPaymentPageData] = useState(null);
-  const [paymentPageLoading, setPaymentPageLoading] = useState(false);
+  const [paymentPageLoading, setPaymentPageLoading] =
+    useState(false);
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState("");
 
   const currentPath = window.location.pathname;
   const isPaymentPage = currentPath.startsWith("/pay/");
@@ -48,9 +59,22 @@ function App() {
     gst: Number(gst),
   };
 
+  const enterVoicePay = () => {
+    sessionStorage.setItem("voicepay_started", "true");
+    setStarted(true);
+  };
+
+  const goToMainWorkspace = () => {
+    sessionStorage.setItem("voicepay_started", "true");
+    window.location.href = "/";
+  };
+
   const loadDashboard = async () => {
     try {
-      const response = await fetch(`${API_URL}/dashboard/summary`);
+      const response = await fetch(
+        `${API_URL}/dashboard/summary`
+      );
+
       const data = await response.json();
       setDashboard(data);
     } catch {
@@ -62,6 +86,7 @@ function App() {
     try {
       const response = await fetch(`${API_URL}/invoices`);
       const data = await response.json();
+
       setInvoices(data.invoices || []);
     } catch {
       setError("Unable to load invoices.");
@@ -72,35 +97,46 @@ function App() {
     try {
       const response = await fetch(`${API_URL}/audit`);
       const data = await response.json();
+
       setAuditLogs(data.audit_logs || []);
     } catch {
-      setError("Unable to load activity history.");
+      setError("Unable to load history.");
     }
   };
 
   const refreshAll = async () => {
     setIsRefreshing(true);
+    setError("");
 
-    await Promise.all([
-      loadDashboard(),
-      loadInvoices(),
-      loadAuditLogs(),
-    ]);
+    // Clear old dashboard result cards/messages.
+    setBusinessAnswer(null);
+    setReminder(null);
 
-    setIsRefreshing(false);
+    try {
+      await Promise.all([
+        loadDashboard(),
+        loadInvoices(),
+        loadAuditLogs(),
+      ]);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   useEffect(() => {
-    if (!isPaymentPage) {
+    if (started && !isPaymentPage) {
       refreshAll();
     }
-  }, [isPaymentPage]);
+  }, [started, isPaymentPage]);
 
   useEffect(() => {
-    if (!paymentLinkId) return;
+    if (!paymentLinkId) {
+      return;
+    }
 
     const loadPaymentDetails = async () => {
       setPaymentPageLoading(true);
+      setError("");
 
       try {
         const response = await fetch(
@@ -111,11 +147,12 @@ function App() {
 
         if (data.error) {
           setError(data.error);
-        } else {
-          setPaymentPageData(data);
+          return;
         }
+
+        setPaymentPageData(data);
       } catch {
-        setError("Unable to load payment.");
+        setError("Unable to load payment details.");
       } finally {
         setPaymentPageLoading(false);
       }
@@ -132,7 +169,9 @@ function App() {
       window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      setError("Voice recognition is not supported in this browser.");
+      setError(
+        "Speech recognition is not supported in this browser."
+      );
       return;
     }
 
@@ -176,7 +215,9 @@ function App() {
       window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      setError("Voice recognition is not supported in this browser.");
+      setError(
+        "Speech recognition is not supported in this browser."
+      );
       return;
     }
 
@@ -191,7 +232,9 @@ function App() {
     };
 
     recognition.onresult = (event) => {
-      setBusinessQuery(event.results[0][0].transcript);
+      setBusinessQuery(
+        event.results[0][0].transcript
+      );
     };
 
     recognition.onend = () => {
@@ -201,22 +244,30 @@ function App() {
     recognition.start();
   };
 
-  const handleVoiceCommand = async () => {
+  const processVoiceCommand = async () => {
     setError("");
-    setResult(null);
+    setPreview(null);
     setCreatedInvoice(null);
     setPaymentLink(null);
 
+    if (!voiceText.trim()) {
+      setError("Speak or type an invoice command first.");
+      return;
+    }
+
     try {
-      const response = await fetch(`${API_URL}/voice/parse`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          text: voiceText,
-        }),
-      });
+      const response = await fetch(
+        `${API_URL}/voice/parse`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            text: voiceText,
+          }),
+        }
+      );
 
       const data = await response.json();
 
@@ -231,26 +282,51 @@ function App() {
       setPrice(data.price.toString());
       setGst(data.gst.toString());
 
-      await loadAuditLogs();
+      const previewResponse = await fetch(
+        `${API_URL}/invoice/preview`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            customer: data.customer,
+            product: data.product,
+            quantity: Number(data.quantity),
+            price: Number(data.price),
+            gst: Number(data.gst),
+          }),
+        }
+      );
+
+      const previewData =
+        await previewResponse.json();
+
+      if (previewData.error) {
+        setError(previewData.error);
+        return;
+      }
+
+      setPreview(previewData);
     } catch {
-      setError("Unable to process voice command.");
+      setError("Unable to process invoice command.");
     }
   };
 
-  const handlePreview = async () => {
+  const updatePreview = async () => {
     setError("");
-    setResult(null);
-    setCreatedInvoice(null);
-    setPaymentLink(null);
 
     try {
-      const response = await fetch(`${API_URL}/invoice/preview`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(invoiceData),
-      });
+      const response = await fetch(
+        `${API_URL}/invoice/preview`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(invoiceData),
+        }
+      );
 
       const data = await response.json();
 
@@ -259,23 +335,28 @@ function App() {
         return;
       }
 
-      setResult(data);
+      setPreview(data);
+      setCreatedInvoice(null);
+      setPaymentLink(null);
     } catch {
-      setError("Unable to preview invoice.");
+      setError("Unable to update invoice.");
     }
   };
 
-  const handleCreate = async () => {
+  const createInvoice = async () => {
     setError("");
 
     try {
-      const response = await fetch(`${API_URL}/invoice/create`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(invoiceData),
-      });
+      const response = await fetch(
+        `${API_URL}/invoice/create`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(invoiceData),
+        }
+      );
 
       const data = await response.json();
 
@@ -291,7 +372,7 @@ function App() {
     }
   };
 
-  const handleGeneratePaymentLink = async () => {
+  const generatePaymentLink = async () => {
     setError("");
 
     if (!createdInvoice) {
@@ -327,7 +408,7 @@ function App() {
     }
   };
 
-  const handleMockPayment = async () => {
+  const completePayment = async () => {
     setError("");
 
     try {
@@ -354,25 +435,28 @@ function App() {
     }
   };
 
-  const handleBusinessQuery = async () => {
+  const askBusinessQuery = async () => {
     setError("");
     setBusinessAnswer(null);
 
     if (!businessQuery.trim()) {
-      setError("Ask VoicePay a question first.");
+      setError("Ask VoicePay a question.");
       return;
     }
 
     try {
-      const response = await fetch(`${API_URL}/business/query`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          text: businessQuery,
-        }),
-      });
+      const response = await fetch(
+        `${API_URL}/business/query`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            text: businessQuery,
+          }),
+        }
+      );
 
       const data = await response.json();
 
@@ -388,20 +472,23 @@ function App() {
     }
   };
 
-  const handleReminder = async (invoiceId) => {
-    setReminder(null);
+  const createReminder = async (invoiceId) => {
     setError("");
+    setReminder(null);
 
     try {
-      const response = await fetch(`${API_URL}/reminder/create`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          invoice_id: invoiceId,
-        }),
-      });
+      const response = await fetch(
+        `${API_URL}/reminder/create`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            invoice_id: invoiceId,
+          }),
+        }
+      );
 
       const data = await response.json();
 
@@ -417,548 +504,863 @@ function App() {
     }
   };
 
+  const loadExample = () => {
+    if (voiceLanguage === "ta-IN") {
+      setVoiceText(
+        "கணேஷுக்கு நாலு பாட்டில் ₹40 ஜிஎஸ்டி 12%"
+      );
+    } else {
+      setVoiceText(
+        "Create invoice for Arun Kumar 2 water bottles at 50 rupees GST 18 percent"
+      );
+    }
+
+    setPreview(null);
+    setCreatedInvoice(null);
+    setPaymentLink(null);
+    setError("");
+  };
+
+  const resetInvoice = () => {
+    setVoiceText("");
+    setCustomer("");
+    setProduct("");
+    setQuantity("");
+    setPrice("");
+    setGst("");
+    setPreview(null);
+    setCreatedInvoice(null);
+    setPaymentLink(null);
+    setError("");
+  };
+
   if (isPaymentPage) {
     return (
-      <div className="payment-page">
-        <div className="payment-card">
-          <div className="brand-mark">VP</div>
+      <div className="glass-background payment-background">
+        <div className="orb orb-one"></div>
+        <div className="orb orb-two"></div>
 
-          <h1>VoicePay</h1>
-          <p className="muted">Secure demo payment request</p>
+        <div className="glass-card payment-card">
+          <div className="payment-brand">
+            <div className="logo-mark">V</div>
 
-          {paymentPageLoading && <p>Loading...</p>}
+            <div>
+              <strong>VoicePay</strong>
+              <span>Secure demo payment</span>
+            </div>
+          </div>
 
-          {error && <div className="error-box">{error}</div>}
-
-          {paymentPageData && (
-            <>
-              <div className="payment-details">
-                <span>Customer</span>
-                <strong>{paymentPageData.customer}</strong>
-
-                <span>Amount</span>
-                <strong className="payment-amount">
-                  ₹{Number(paymentPageData.amount).toFixed(2)}
-                </strong>
-              </div>
-
-              {paymentPageData.payment_status === "pending" ? (
-                <>
-                  <button
-                    className="primary-button full-button"
-                    onClick={handleMockPayment}
-                  >
-                    Pay ₹{Number(paymentPageData.amount).toFixed(2)}
-                  </button>
-
-                  <p className="demo-note">
-                    Demo mode · No real money will be charged
-                  </p>
-                </>
-              ) : (
-                <div className="success-box">
-                  <div className="success-icon">✓</div>
-                  <h2>Payment Successful</h2>
-                  <p>Your payment has been recorded.</p>
-                </div>
-              )}
-            </>
+          {paymentPageLoading && (
+            <p className="loading-text">
+              Loading payment request...
+            </p>
           )}
+
+          {error && (
+            <div className="error-banner">{error}</div>
+          )}
+
+          {paymentPageData &&
+            paymentPageData.payment_status === "pending" && (
+              <>
+                <div className="payment-amount">
+                  <span>PAYMENT REQUEST</span>
+
+                  <h1>
+                    ₹
+                    {Number(
+                      paymentPageData.amount
+                    ).toFixed(2)}
+                  </h1>
+
+                  <p>
+                    From{" "}
+                    <strong>
+                      {paymentPageData.customer}
+                    </strong>
+                  </p>
+                </div>
+
+                <div className="payment-meta">
+                  <div>
+                    <span>Invoice</span>
+
+                    <strong>
+                      {paymentPageData.invoice_id}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Status</span>
+                    <strong>Pending</strong>
+                  </div>
+                </div>
+
+                <button
+                  className="gradient-button full-button"
+                  onClick={completePayment}
+                >
+                  Pay securely
+                  <span>→</span>
+                </button>
+
+                <p className="demo-text">
+                  Demo mode · No real money will be charged
+                </p>
+              </>
+            )}
+
+          {paymentPageData &&
+            paymentPageData.payment_status === "paid" && (
+              <div className="payment-success">
+                <div className="success-icon">✓</div>
+
+                <span>PAYMENT COMPLETE</span>
+
+                <h1>Payment successful</h1>
+
+                <p>
+                  This payment has been recorded in VoicePay.
+                </p>
+
+                <div className="paid-amount">
+                  ₹
+                  {Number(
+                    paymentPageData.amount
+                  ).toFixed(2)}
+                </div>
+
+                <button
+                  className="gradient-button full-button back-home-button"
+                  onClick={goToMainWorkspace}
+                >
+                  Back to VoicePay
+                  <span>→</span>
+                </button>
+              </div>
+            )}
+        </div>
+      </div>
+    );
+  }
+
+  if (!started) {
+    return (
+      <div className="glass-background welcome-screen">
+        <div className="orb orb-one"></div>
+        <div className="orb orb-two"></div>
+        <div className="orb orb-three"></div>
+
+        <div className="welcome-nav">
+          <div className="welcome-brand">
+            <div className="logo-mark">V</div>
+
+            <div>
+              <strong>VoicePay</strong>
+              <span>AI</span>
+            </div>
+          </div>
+
+          <div className="welcome-demo">
+            <span></span>
+            LIVE DEMO
+          </div>
+        </div>
+
+        <div className="welcome-content welcome-simple">
+          <h1>
+            Welcome to
+            <br />
+            <span>VoicePay.</span>
+          </h1>
+
+          <p className="welcome-tagline">
+            From voice to invoice in one command.
+          </p>
+
+          <button
+            className="start-button"
+            onClick={enterVoicePay}
+          >
+            Start VoicePay
+            <span>→</span>
+          </button>
         </div>
       </div>
     );
   }
 
   const pendingInvoices = invoices.filter(
-    (invoice) => invoice.payment_status === "pending"
+    (invoice) =>
+      invoice.payment_status === "pending"
   );
 
   return (
-    <div className="app-shell">
-      <header className="topbar">
-        <div className="logo-area">
-          <div className="logo-icon">VP</div>
+    <div className="glass-background app-screen">
+      <div className="orb orb-one"></div>
+      <div className="orb orb-two"></div>
+      <div className="orb orb-three"></div>
+
+      <header className="app-topbar">
+        <button
+          className="topbar-button dashboard-button"
+          onClick={() => setDashboardOpen(true)}
+        >
+          <span className="menu-icon">☰</span>
+          Dashboard
+        </button>
+
+        <div className="topbar-brand">
+          <div className="logo-mark small-logo">V</div>
 
           <div>
-            <div className="logo-name">VoicePay AI</div>
-            <div className="logo-subtitle">
-              Voice-first payments for merchants
-            </div>
+            <strong>VoicePay</strong>
+            <span>AI</span>
           </div>
         </div>
 
-        <div className="top-actions">
-          <span className="demo-badge">● DEMO MODE</span>
+        <div className="topbar-actions">
+          <button
+            className="topbar-button icon-button"
+            onClick={refreshAll}
+            disabled={isRefreshing}
+            title="Refresh dashboard data"
+          >
+            {isRefreshing ? "…" : "↻"}
+          </button>
 
           <select
+            className="language-toggle"
             value={voiceLanguage}
-            onChange={(e) => setVoiceLanguage(e.target.value)}
-            className="language-select"
+            onChange={(event) =>
+              setVoiceLanguage(event.target.value)
+            }
           >
-            <option value="en-IN">English</option>
+            <option value="en-IN">EN</option>
             <option value="ta-IN">தமிழ்</option>
           </select>
         </div>
       </header>
 
-      <main className="main-content">
-        <section className="hero">
-          <div className="hero-copy">
-            <span className="eyebrow">VOICE-FIRST COMMERCE</span>
+      <main className="workspace">
+        <section className="workspace-heading">
+          <span>VOICE INVOICE</span>
 
-            <h1>
-              Payments should be as easy as
-              <span> speaking.</span>
-            </h1>
+          <h1>
+            Generate an invoice
+            <br />
+            with your voice.
+          </h1>
 
-            <p>
-              Create invoices, collect payments and understand your
-              business using simple English or Tamil voice commands.
-            </p>
+          <p>
+            Speak naturally or type the transaction.
+            VoicePay will prepare the invoice for you.
+          </p>
+        </section>
 
-            <div className="hero-tags">
-              <span>🎙 Voice invoices</span>
-              <span>🌐 Tamil + English</span>
-              <span>💳 Payment links</span>
-              <span>📊 Business insights</span>
-            </div>
-          </div>
-
-          <div className="voice-card">
-            <div className="voice-card-header">
+        <section className="workspace-grid">
+          <div className="glass-card command-panel">
+            <div className="card-heading">
               <div>
-                <span className="section-label">QUICK ACTION</span>
-                <h2>Create invoice by voice</h2>
+                <span className="section-tag">
+                  MESSAGE
+                </span>
+
+                <h2>What did you sell?</h2>
               </div>
 
-              <div
-                className={
-                  isListening
-                    ? "mic-circle listening"
-                    : "mic-circle"
-                }
-              >
-                🎙
+              <div className="language-status">
+                <span></span>
+
+                {voiceLanguage === "ta-IN"
+                  ? "Tamil"
+                  : "English"}
               </div>
             </div>
 
-            <div className="voice-input-row">
-              <input
+            <div className="message-box">
+              <textarea
                 value={voiceText}
-                onChange={(e) => setVoiceText(e.target.value)}
+                onChange={(event) =>
+                  setVoiceText(event.target.value)
+                }
                 placeholder={
                   voiceLanguage === "ta-IN"
-                    ? "உங்கள் invoice command..."
+                    ? "கணேஷுக்கு நாலு பாட்டில் ₹40 ஜிஎஸ்டி 12%"
                     : "Create invoice for Arun Kumar 2 water bottles at 50 rupees GST 18 percent"
                 }
               />
-            </div>
 
-            <div className="button-row">
               <button
-                className="secondary-button"
+                className={
+                  isListening
+                    ? "speak-button listening"
+                    : "speak-button"
+                }
                 onClick={startListening}
               >
-                {isListening ? "Listening..." : "🎙 Speak"}
+                <span>🎙</span>
+
+                {isListening
+                  ? "Listening..."
+                  : "Speak"}
+              </button>
+            </div>
+
+            <div className="command-actions">
+              <button
+                className="soft-button"
+                onClick={loadExample}
+              >
+                Load example
               </button>
 
               <button
-                className="primary-button"
-                onClick={handleVoiceCommand}
+                className="gradient-button"
+                onClick={processVoiceCommand}
               >
-                Process Command →
+                Generate invoice
+                <span>→</span>
               </button>
             </div>
 
-            {customer && product && (
-              <div className="parsed-banner">
-                <span>✓ Voice understood</span>
-                <strong>
-                  {customer} · {quantity} {product} · ₹{price}
-                </strong>
-              </div>
+            {error && (
+              <div className="error-banner">{error}</div>
             )}
-          </div>
-        </section>
 
-        {error && (
-          <div className="error-box global-error">
-            ⚠ {error}
-          </div>
-        )}
-
-        <section className="section">
-          <div className="section-heading">
-            <div>
-              <span className="section-label">LIVE OVERVIEW</span>
-              <h2>Business Dashboard</h2>
-            </div>
-
-            <button
-              className="ghost-button"
-              onClick={refreshAll}
-              disabled={isRefreshing}
-            >
-              {isRefreshing ? "Refreshing..." : "↻ Refresh"}
-            </button>
-          </div>
-
-          <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-icon">▣</div>
-              <span>Total invoices</span>
-              <strong>{dashboard?.total_invoices ?? 0}</strong>
-            </div>
-
-            <div className="stat-card">
-              <div className="stat-icon">✓</div>
-              <span>Paid invoices</span>
-              <strong>{dashboard?.paid_invoices ?? 0}</strong>
-            </div>
-
-            <div className="stat-card">
-              <div className="stat-icon">◷</div>
-              <span>Pending invoices</span>
-              <strong>{dashboard?.pending_invoices ?? 0}</strong>
-            </div>
-
-            <div className="stat-card highlight-stat">
-              <div className="stat-icon">₹</div>
-              <span>Total collected</span>
-              <strong>
-                ₹{Number(dashboard?.total_collected || 0).toFixed(2)}
-              </strong>
-            </div>
-
-            <div className="stat-card">
-              <div className="stat-icon">↗</div>
-              <span>Pending amount</span>
-              <strong>
-                ₹{Number(dashboard?.pending_amount || 0).toFixed(2)}
-              </strong>
-            </div>
-          </div>
-        </section>
-
-        <div className="two-column">
-          <section className="panel">
-            <div className="panel-heading">
+            <div className="helper-strip">
               <div>
-                <span className="section-label">SMART ASSISTANT</span>
-                <h2>Ask VoicePay</h2>
+                <span>01</span>
+                <p>Speak naturally</p>
               </div>
 
-              <span className="ai-badge">AI ASSISTANT</span>
-            </div>
-
-            <p className="muted">
-              Ask simple business questions using your voice.
-            </p>
-
-            <div className="query-box">
-              <input
-                value={businessQuery}
-                onChange={(e) => setBusinessQuery(e.target.value)}
-                placeholder="Who hasn't paid me?"
-              />
-
-              <button
-                className="mic-small"
-                onClick={startBusinessListening}
-              >
-                {isBusinessListening ? "●" : "🎙"}
-              </button>
-            </div>
-
-            <button
-              className="primary-button full-button"
-              onClick={handleBusinessQuery}
-            >
-              Ask VoicePay
-            </button>
-
-            <div className="suggestions">
-              <button
-                onClick={() =>
-                  setBusinessQuery("Who hasn't paid me?")
-                }
-              >
-                Who hasn't paid me?
-              </button>
-
-              <button
-                onClick={() =>
-                  setBusinessQuery("How much did I collect?")
-                }
-              >
-                How much did I collect?
-              </button>
-            </div>
-
-            {businessAnswer && (
-              <div className="answer-card">
-                <span>VOICEPAY INSIGHT</span>
-                <p>{businessAnswer.answer}</p>
-              </div>
-            )}
-          </section>
-
-          <section className="panel">
-            <div className="panel-heading">
               <div>
-                <span className="section-label">INVOICE BUILDER</span>
-                <h2>Invoice details</h2>
+                <span>02</span>
+                <p>Review details</p>
+              </div>
+
+              <div>
+                <span>03</span>
+                <p>Send payment link</p>
               </div>
             </div>
-
-            <div className="form-grid">
-              <div className="field full-field">
-                <label>Customer</label>
-                <input
-                  value={customer}
-                  onChange={(e) => setCustomer(e.target.value)}
-                  placeholder="Customer name"
-                />
-              </div>
-
-              <div className="field full-field">
-                <label>Product / Service</label>
-                <input
-                  value={product}
-                  onChange={(e) => setProduct(e.target.value)}
-                  placeholder="Product"
-                />
-              </div>
-
-              <div className="field">
-                <label>Quantity</label>
-                <input
-                  type="number"
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                  placeholder="0"
-                />
-              </div>
-
-              <div className="field">
-                <label>Price</label>
-                <input
-                  type="number"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  placeholder="₹"
-                />
-              </div>
-
-              <div className="field full-field">
-                <label>GST (%)</label>
-                <input
-                  type="number"
-                  value={gst}
-                  onChange={(e) => setGst(e.target.value)}
-                  placeholder="18"
-                />
-              </div>
-            </div>
-
-            <button
-              className="secondary-button full-button"
-              onClick={handlePreview}
-            >
-              Preview Invoice
-            </button>
-
-            {result && (
-              <div className="invoice-preview">
-                <div className="preview-header">
-                  <div>
-                    <span>INVOICE PREVIEW</span>
-                    <h3>{result.customer}</h3>
-                  </div>
-
-                  <strong>
-                    ₹{Number(result.total).toFixed(2)}
-                  </strong>
-                </div>
-
-                <div className="preview-line">
-                  <span>
-                    {result.quantity} × {result.product}
-                  </span>
-                  <span>₹{Number(result.subtotal).toFixed(2)}</span>
-                </div>
-
-                <div className="preview-line">
-                  <span>GST</span>
-                  <span>₹{Number(result.gst_amount).toFixed(2)}</span>
-                </div>
-
-                <button
-                  className="primary-button full-button"
-                  onClick={handleCreate}
-                >
-                  Confirm & Create Invoice
-                </button>
-              </div>
-            )}
-
-            {createdInvoice && (
-              <div className="success-card">
-                <div className="success-check">✓</div>
-
-                <div>
-                  <span>Invoice created</span>
-                  <strong>{createdInvoice.invoice_id}</strong>
-                  <p>
-                    ₹{Number(createdInvoice.total).toFixed(2)} ·{" "}
-                    {createdInvoice.customer}
-                  </p>
-                </div>
-
-                <button
-                  className="primary-button"
-                  onClick={handleGeneratePaymentLink}
-                >
-                  Create Payment Link
-                </button>
-              </div>
-            )}
-
-            {paymentLink && (
-              <div className="payment-link-card">
-                <span>PAYMENT LINK READY</span>
-
-                <strong>
-                  ₹{Number(paymentLink.amount).toFixed(2)}
-                </strong>
-
-                <a
-                  href={paymentLink.payment_url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open Demo Payment →
-                </a>
-              </div>
-            )}
-          </section>
-        </div>
-
-        <section className="section">
-          <div className="section-heading">
-            <div>
-              <span className="section-label">COLLECTIONS</span>
-              <h2>Pending Payments</h2>
-            </div>
-
-            <span className="pending-pill">
-              {pendingInvoices.length} pending
-            </span>
           </div>
 
-          <div className="table-card">
-            {pendingInvoices.length === 0 ? (
-              <div className="empty-state">
-                <div>✓</div>
-                <h3>All caught up</h3>
-                <p>No pending payments.</p>
+          <div className="glass-card invoice-panel">
+            {!preview ? (
+              <div className="invoice-placeholder">
+                <div className="preview-icon">✦</div>
+
+                <span className="section-tag">
+                  INVOICE PREVIEW
+                </span>
+
+                <h2>
+                  Your generated invoice
+                  <br />
+                  appears here.
+                </h2>
+
+                <p>
+                  Speak or type a transaction and VoicePay
+                  will place the generated invoice here.
+                </p>
+
+                <div className="placeholder-lines">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
               </div>
             ) : (
-              <>
-                <div className="table-row table-header">
-                  <span>Customer</span>
-                  <span>Invoice</span>
-                  <span>Amount</span>
-                  <span>Status</span>
-                  <span>Action</span>
-                </div>
-
-                {pendingInvoices.slice(0, 5).map((invoice) => (
-                  <div
-                    className="table-row"
-                    key={invoice.invoice_id}
-                  >
-                    <strong>{invoice.customer}</strong>
-                    <span>{invoice.invoice_id}</span>
-                    <span>
-                      ₹{Number(invoice.total).toFixed(2)}
+              <div className="invoice-content">
+                <div className="invoice-top">
+                  <div>
+                    <span className="section-tag">
+                      GENERATED INVOICE
                     </span>
 
-                    <span>
-                      <span className="status-pending">
-                        Pending
-                      </span>
-                    </span>
-
-                    <span>
-                      <button
-                        className="reminder-button"
-                        onClick={() =>
-                          handleReminder(invoice.invoice_id)
-                        }
-                      >
-                        🔔 Reminder
-                      </button>
-                    </span>
+                    <h2>{customer}</h2>
                   </div>
-                ))}
-              </>
-            )}
-          </div>
 
-          {reminder && (
-            <div className="reminder-card">
-              <div>
-                <span>REMINDER READY</span>
-                <p>{reminder.message}</p>
-              </div>
-
-              <button
-                className="secondary-button"
-                onClick={() =>
-                  navigator.clipboard.writeText(reminder.message)
-                }
-              >
-                Copy Message
-              </button>
-            </div>
-          )}
-        </section>
-
-        <section className="activity-section">
-          <div>
-            <span className="section-label">TRANSPARENT BY DESIGN</span>
-            <h2>Recent Activity</h2>
-          </div>
-
-          <div className="activity-list">
-            {auditLogs.slice(0, 4).map((log) => (
-              <div className="activity-item" key={log.id}>
-                <div className="activity-dot"></div>
-
-                <div>
-                  <strong>
-                    {log.action.replaceAll("_", " ")}
-                  </strong>
-
-                  <p>{log.details}</p>
+                  <div className="success-pill">
+                    ✓ Ready
+                  </div>
                 </div>
 
-                <small>
-                  {new Date(log.created_at).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </small>
+                {createdInvoice && (
+                  <div className="invoice-id-card">
+                    <span>INVOICE ID</span>
+
+                    <strong>
+                      {createdInvoice.invoice_id}
+                    </strong>
+                  </div>
+                )}
+
+                <div className="invoice-form-grid">
+                  <label className="wide-field">
+                    <span>Customer</span>
+
+                    <input
+                      value={customer}
+                      onChange={(event) =>
+                        setCustomer(event.target.value)
+                      }
+                    />
+                  </label>
+
+                  <label className="wide-field">
+                    <span>Product / Service</span>
+
+                    <input
+                      value={product}
+                      onChange={(event) =>
+                        setProduct(event.target.value)
+                      }
+                    />
+                  </label>
+
+                  <label>
+                    <span>Quantity</span>
+
+                    <input
+                      type="number"
+                      value={quantity}
+                      onChange={(event) =>
+                        setQuantity(event.target.value)
+                      }
+                    />
+                  </label>
+
+                  <label>
+                    <span>Price</span>
+
+                    <input
+                      type="number"
+                      value={price}
+                      onChange={(event) =>
+                        setPrice(event.target.value)
+                      }
+                    />
+                  </label>
+
+                  <label>
+                    <span>GST %</span>
+
+                    <input
+                      type="number"
+                      value={gst}
+                      onChange={(event) =>
+                        setGst(event.target.value)
+                      }
+                    />
+                  </label>
+                </div>
+
+                <button
+                  className="edit-button"
+                  onClick={updatePreview}
+                >
+                  ✎ Edit / Update Invoice
+                </button>
+
+                <div className="invoice-totals">
+                  <div>
+                    <span>Subtotal</span>
+
+                    <strong>
+                      ₹{Number(preview.subtotal).toFixed(2)}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>GST</span>
+
+                    <strong>
+                      ₹{Number(preview.gst_amount).toFixed(2)}
+                    </strong>
+                  </div>
+
+                  <div className="grand-total">
+                    <span>Total</span>
+
+                    <strong>
+                      ₹{Number(preview.total).toFixed(2)}
+                    </strong>
+                  </div>
+                </div>
+
+                {!createdInvoice && (
+                  <button
+                    className="gradient-button full-button"
+                    onClick={createInvoice}
+                  >
+                    Confirm & create invoice
+                    <span>→</span>
+                  </button>
+                )}
+
+                {createdInvoice && !paymentLink && (
+                  <button
+                    className="gradient-button full-button"
+                    onClick={generatePaymentLink}
+                  >
+                    Generate payment link
+                    <span>→</span>
+                  </button>
+                )}
+
+                {paymentLink && (
+                  <div className="payment-link-box">
+                    <div>
+                      <span>PAYMENT LINK READY</span>
+
+                      <strong>
+                        ₹
+                        {Number(
+                          paymentLink.amount
+                        ).toFixed(2)}
+                      </strong>
+                    </div>
+
+                    <a
+                      href={paymentLink.payment_url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open payment
+                      <span>↗</span>
+                    </a>
+                  </div>
+                )}
+
+                <button
+                  className="new-invoice-link"
+                  onClick={resetInvoice}
+                >
+                  + Start another invoice
+                </button>
               </div>
-            ))}
+            )}
           </div>
         </section>
       </main>
 
-      <footer>
-        VoicePay AI · Built for Razorpay AI Buildathon 2026
-      </footer>
+      {dashboardOpen && (
+        <div className="dashboard-overlay">
+          <div
+            className="dashboard-backdrop"
+            onClick={() => setDashboardOpen(false)}
+          ></div>
+
+          <aside className="dashboard-drawer glass-card">
+            <div className="drawer-header">
+              <div>
+                <span className="section-tag">
+                  MERCHANT DASHBOARD
+                </span>
+
+                <h2>VoicePay</h2>
+              </div>
+
+              <button
+                className="close-button"
+                onClick={() => setDashboardOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="dashboard-tabs">
+              <button
+                className={
+                  activeDashboardTab === "overview"
+                    ? "active"
+                    : ""
+                }
+                onClick={() =>
+                  setActiveDashboardTab("overview")
+                }
+              >
+                Overview
+              </button>
+
+              <button
+                className={
+                  activeDashboardTab === "queries"
+                    ? "active"
+                    : ""
+                }
+                onClick={() =>
+                  setActiveDashboardTab("queries")
+                }
+              >
+                Queries
+              </button>
+
+              <button
+                className={
+                  activeDashboardTab === "history"
+                    ? "active"
+                    : ""
+                }
+                onClick={() =>
+                  setActiveDashboardTab("history")
+                }
+              >
+                History
+              </button>
+            </div>
+
+            {activeDashboardTab === "overview" && (
+              <div className="drawer-content">
+                <div className="dashboard-stat-grid">
+                  <div className="glass-stat">
+                    <span>Total collected</span>
+
+                    <strong>
+                      ₹
+                      {Number(
+                        dashboard?.total_collected || 0
+                      ).toFixed(2)}
+                    </strong>
+                  </div>
+
+                  <div className="glass-stat">
+                    <span>Pending amount</span>
+
+                    <strong>
+                      ₹
+                      {Number(
+                        dashboard?.pending_amount || 0
+                      ).toFixed(2)}
+                    </strong>
+                  </div>
+
+                  <div className="glass-stat">
+                    <span>Paid invoices</span>
+
+                    <strong>
+                      {dashboard?.paid_invoices || 0}
+                    </strong>
+                  </div>
+
+                  <div className="glass-stat">
+                    <span>Pending</span>
+
+                    <strong>
+                      {dashboard?.pending_invoices || 0}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="drawer-section">
+                  <div className="drawer-section-title">
+                    <h3>Pending payments</h3>
+
+                    <span>
+                      {pendingInvoices.length} pending
+                    </span>
+                  </div>
+
+                  <div className="pending-list">
+                    {pendingInvoices.length === 0 ? (
+                      <div className="empty-dashboard">
+                        ✓ No pending payments
+                      </div>
+                    ) : (
+                      pendingInvoices
+                        .slice(0, 5)
+                        .map((invoice) => (
+                          <div
+                            className="pending-item"
+                            key={invoice.invoice_id}
+                          >
+                            <div className="customer-letter">
+                              {invoice.customer
+                                .charAt(0)
+                                .toUpperCase()}
+                            </div>
+
+                            <div>
+                              <strong>
+                                {invoice.customer}
+                              </strong>
+
+                              <span>
+                                {invoice.invoice_id}
+                              </span>
+                            </div>
+
+                            <strong className="pending-amount">
+                              ₹
+                              {Number(
+                                invoice.total
+                              ).toFixed(2)}
+                            </strong>
+
+                            <button
+                              onClick={() =>
+                                createReminder(
+                                  invoice.invoice_id
+                                )
+                              }
+                            >
+                              Remind
+                            </button>
+                          </div>
+                        ))
+                    )}
+                  </div>
+                </div>
+
+                {reminder && (
+                  <div className="reminder-box">
+                    <span>REMINDER READY</span>
+
+                    <p>{reminder.message}</p>
+
+                    <button
+                      onClick={() =>
+                        navigator.clipboard.writeText(
+                          reminder.message
+                        )
+                      }
+                    >
+                      Copy message
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeDashboardTab === "queries" && (
+              <div className="drawer-content">
+                <div className="query-hero">
+                  <span className="section-tag">
+                    ASK VOICEPAY
+                  </span>
+
+                  <h3>
+                    Ask about your
+                    <br />
+                    business.
+                  </h3>
+
+                  <p>
+                    Search collections and pending payments
+                    using natural language.
+                  </p>
+                </div>
+
+                <div className="query-input">
+                  <input
+                    value={businessQuery}
+                    onChange={(event) =>
+                      setBusinessQuery(
+                        event.target.value
+                      )
+                    }
+                    placeholder="Who hasn't paid me?"
+                  />
+
+                  <button onClick={startBusinessListening}>
+                    {isBusinessListening ? "●" : "🎙"}
+                  </button>
+                </div>
+
+                <div className="query-examples">
+                  <button
+                    onClick={() =>
+                      setBusinessQuery(
+                        "Who hasn't paid me?"
+                      )
+                    }
+                  >
+                    Who hasn't paid me?
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      setBusinessQuery(
+                        "How much did I collect?"
+                      )
+                    }
+                  >
+                    How much did I collect?
+                  </button>
+                </div>
+
+                <button
+                  className="gradient-button full-button"
+                  onClick={askBusinessQuery}
+                >
+                  Search business
+                  <span>→</span>
+                </button>
+
+                {businessAnswer && (
+                  <div className="query-answer">
+                    <span>VOICEPAY ANSWER</span>
+
+                    <p>{businessAnswer.answer}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeDashboardTab === "history" && (
+              <div className="drawer-content">
+                <div className="drawer-section-title">
+                  <h3>Activity history</h3>
+
+                  <span>Latest actions</span>
+                </div>
+
+                <div className="history-list">
+                  {auditLogs.length === 0 ? (
+                    <div className="empty-dashboard">
+                      No activity yet
+                    </div>
+                  ) : (
+                    auditLogs
+                      .slice(0, 12)
+                      .map((log) => (
+                        <div
+                          className="history-item"
+                          key={log.id}
+                        >
+                          <div className="history-dot"></div>
+
+                          <div>
+                            <strong>
+                              {log.action.replaceAll(
+                                "_",
+                                " "
+                              )}
+                            </strong>
+
+                            <p>{log.details}</p>
+                          </div>
+
+                          <small>
+                            {new Date(
+                              log.created_at
+                            ).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </small>
+                        </div>
+                      ))
+                  )}
+                </div>
+              </div>
+            )}
+          </aside>
+        </div>
+      )}
     </div>
   );
 }
