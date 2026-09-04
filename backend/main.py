@@ -5,8 +5,11 @@ from datetime import datetime
 import uuid
 import re
 
+
 app = FastAPI(title="VoicePay AI Backend")
 
+
+# Allow React frontend to communicate with FastAPI
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -15,6 +18,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# --------------------------------------------------
+# DATA MODELS
+# --------------------------------------------------
 
 class InvoiceData(BaseModel):
     customer: str
@@ -28,12 +35,26 @@ class VoiceCommand(BaseModel):
     text: str
 
 
+class PaymentLinkRequest(BaseModel):
+    invoice_id: str
+    customer: str
+    amount: float
+
+
+# --------------------------------------------------
+# HOME
+# --------------------------------------------------
+
 @app.get("/")
 def home():
     return {
         "message": "VoicePay AI backend is running"
     }
 
+
+# --------------------------------------------------
+# INVOICE VALIDATION
+# --------------------------------------------------
 
 def validate_invoice(invoice: InvoiceData):
 
@@ -54,6 +75,10 @@ def validate_invoice(invoice: InvoiceData):
 
     return None
 
+
+# --------------------------------------------------
+# INVOICE PREVIEW
+# --------------------------------------------------
 
 @app.post("/invoice/preview")
 def preview_invoice(invoice: InvoiceData):
@@ -81,6 +106,10 @@ def preview_invoice(invoice: InvoiceData):
         "status": "ready_for_confirmation"
     }
 
+
+# --------------------------------------------------
+# CREATE INVOICE
+# --------------------------------------------------
 
 @app.post("/invoice/create")
 def create_invoice(invoice: InvoiceData):
@@ -112,6 +141,10 @@ def create_invoice(invoice: InvoiceData):
     }
 
 
+# --------------------------------------------------
+# NATURAL LANGUAGE / VOICE COMMAND PARSER
+# --------------------------------------------------
+
 @app.post("/voice/parse")
 def parse_voice_command(command: VoiceCommand):
 
@@ -124,19 +157,22 @@ def parse_voice_command(command: VoiceCommand):
 
     cleaned_text = (
         text.lower()
-        .replace("₹", "")
         .replace(",", " ")
         .replace(".", " ")
+        .replace("₹", "")
         .replace("rupees", "")
         .replace("rupee", "")
         .replace("rs.", "")
         .replace("rs", "")
-        .replace("₹", "")
         .replace("percentage", "")
         .replace("percent", "")
     )
 
-    cleaned_text = re.sub(r"\s+", " ", cleaned_text).strip()
+    cleaned_text = re.sub(
+        r"\s+",
+        " ",
+        cleaned_text
+    ).strip()
 
     pattern = (
         r"(?:create\s+invoice\s+for|invoice\s+for)\s+"
@@ -176,4 +212,47 @@ def parse_voice_command(command: VoiceCommand):
         "price": price,
         "gst": gst,
         "status": "parsed"
+    }
+
+
+# --------------------------------------------------
+# MOCK RAZORPAY PAYMENT LINK
+# --------------------------------------------------
+
+@app.post("/payment-link/create")
+def create_payment_link(request: PaymentLinkRequest):
+
+    if not request.invoice_id.strip():
+        return {
+            "error": "Invoice ID is required"
+        }
+
+    if not request.customer.strip():
+        return {
+            "error": "Customer name is required"
+        }
+
+    if request.amount <= 0:
+        return {
+            "error": "Payment amount must be greater than 0"
+        }
+
+    payment_link_id = (
+        "plink_" + str(uuid.uuid4())[:10]
+    )
+
+    mock_payment_url = (
+        f"http://localhost:5173/pay/{payment_link_id}"
+    )
+
+    return {
+        "payment_link_id": payment_link_id,
+        "invoice_id": request.invoice_id,
+        "customer": request.customer,
+        "amount": request.amount,
+        "payment_url": mock_payment_url,
+        "payment_status": "pending",
+        "provider": "razorpay_mock",
+        "mock_mode": True,
+        "status": "payment_link_created"
     }
