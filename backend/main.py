@@ -255,6 +255,65 @@ def get_invoices():
 
 
 # --------------------------------------------------
+# DASHBOARD SUMMARY
+# --------------------------------------------------
+
+@app.get("/dashboard/summary")
+def dashboard_summary():
+
+    connection = get_db_connection()
+
+    total_invoices = connection.execute(
+        """
+        SELECT COUNT(*) AS count
+        FROM invoices
+        """
+    ).fetchone()["count"]
+
+    paid_invoices = connection.execute(
+        """
+        SELECT COUNT(*) AS count
+        FROM invoices
+        WHERE payment_status = 'paid'
+        """
+    ).fetchone()["count"]
+
+    pending_invoices = connection.execute(
+        """
+        SELECT COUNT(*) AS count
+        FROM invoices
+        WHERE payment_status = 'pending'
+        """
+    ).fetchone()["count"]
+
+    total_collected = connection.execute(
+        """
+        SELECT COALESCE(SUM(total), 0) AS amount
+        FROM invoices
+        WHERE payment_status = 'paid'
+        """
+    ).fetchone()["amount"]
+
+    pending_amount = connection.execute(
+        """
+        SELECT COALESCE(SUM(total), 0) AS amount
+        FROM invoices
+        WHERE payment_status = 'pending'
+        """
+    ).fetchone()["amount"]
+
+    connection.close()
+
+    return {
+        "total_invoices": total_invoices,
+        "paid_invoices": paid_invoices,
+        "pending_invoices": pending_invoices,
+        "total_collected": total_collected,
+        "pending_amount": pending_amount
+    }
+
+
+# --------------------------------------------------
 # VOICE COMMAND PARSER
 # --------------------------------------------------
 
