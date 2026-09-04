@@ -882,16 +882,17 @@ def parse_voice_command(command: VoiceCommand):
             "error": "Voice command is empty"
         }
 
+    # Tamil commands continue to use the Tamil parser
     if contains_tamil(original_text):
-        return parse_tamil_invoice(
-            original_text
-        )
+        return parse_tamil_invoice(original_text)
 
     text = original_text.lower()
 
+    # Remove common punctuation and currency words
     text = (
         text
         .replace(",", " ")
+        .replace(".", " ")
         .replace("₹", " ")
         .replace("%", " ")
         .replace("rupees", " ")
@@ -902,135 +903,146 @@ def parse_voice_command(command: VoiceCommand):
         .replace("percent", " ")
     )
 
-    text = re.sub(
-        r"\s+",
-        " ",
-        text
-    ).strip()
+    text = re.sub(r"\s+", " ", text).strip()
 
+    # Remove common beginning phrases
     text = re.sub(
-        r"^(please\s+)?(create\s+)?"
-        r"(?:an?\s+)?invoice\s+for\s+",
+        r"^(please\s+)?"
+        r"(create\s+)?"
+        r"(?:an?\s+)?"
+        r"invoice\s+for\s+",
         "",
         text,
         flags=re.IGNORECASE
     )
 
-    customer_match = re.match(
-        r"([a-z]+)",
+    # --------------------------------------------------
+    # FIND GST
+    # --------------------------------------------------
+
+    gst_match = re.search(
+        r"\bgst\s*(?:of\s*)?(\d+(?:\.\d+)?)",
         text,
         re.IGNORECASE
     )
 
-    if not customer_match:
-        return {
-            "error": (
-                "Could not identify "
-                "customer name"
-            ),
-            "heard": original_text
-        }
-
-    customer = customer_match.group(
-        1
-    ).title()
-
-    remaining = text[
-        customer_match.end():
-    ].strip()
-
-    item_match = re.search(
-        r"(\d+)\s+([a-z]+)",
-        remaining,
-        re.IGNORECASE
-    )
-
-    if not item_match:
-        return {
-            "error": (
-                "Could not identify "
-                "quantity and product"
-            ),
-            "heard": original_text
-        }
-
-    quantity = int(
-        item_match.group(1)
-    )
-
-    product = item_match.group(2)
-
-    remaining_after_item = remaining[
-        item_match.end():
-    ].strip()
-
-    gst_match = re.search(
-        r"gst\s*(?:of\s*)?"
-        r"(\d+(?:\.\d+)?)",
-        remaining_after_item,
-        re.IGNORECASE
-    )
-
     if gst_match:
-        gst = float(
-            gst_match.group(1)
-        )
-
-        price_section = (
-            remaining_after_item[
-                :gst_match.start()
-            ]
-        )
+        gst = float(gst_match.group(1))
+        before_gst = text[:gst_match.start()].strip()
 
     else:
         gst_reverse_match = re.search(
-            r"(\d+(?:\.\d+)?)\s*gst",
-            remaining_after_item,
+            r"(\d+(?:\.\d+)?)\s*gst\b",
+            text,
             re.IGNORECASE
         )
 
         if not gst_reverse_match:
             return {
-                "error": (
-                    "Could not identify GST"
-                ),
+                "error": "Could not identify GST",
                 "heard": original_text
             }
 
-        gst = float(
-            gst_reverse_match.group(1)
-        )
+        gst = float(gst_reverse_match.group(1))
 
-        price_section = (
-            remaining_after_item[
-                :gst_reverse_match.start()
-            ]
-        )
+        before_gst = text[
+            :gst_reverse_match.start()
+        ].strip()
 
-    price_section = re.sub(
-        r"\b(at|for|each|price|cost|costing)\b",
-        " ",
-        price_section,
-        flags=re.IGNORECASE
+    # --------------------------------------------------
+    # FIND PRICE
+    # --------------------------------------------------
+
+    price_match = re.search(
+        r"\b(?:at|for|price|cost|costing)\s+"
+        r"(\d+(?:\.\d+)?)\s*$",
+        before_gst,
+        re.IGNORECASE
     )
 
-    price_numbers = re.findall(
-        r"\d+(?:\.\d+)?",
-        price_section
+    if price_match:
+        price = float(price_match.group(1))
+        before_price = before_gst[
+            :price_match.start()
+        ].strip()
+
+    else:
+        price_match = re.search(
+            r"(\d+(?:\.\d+)?)\s*$",
+            before_gst
+        )
+
+        if not price_match:
+            return {
+                "error": "Could not identify product price",
+                "heard": original_text
+            }
+
+        price = float(price_match.group(1))
+
+        before_price = before_gst[
+            :price_match.start()
+        ].strip()
+
+    # --------------------------------------------------
+    # FIND QUANTITY
+    # --------------------------------------------------
+
+    quantity_match = re.search(
+        r"\b(\d+)\b",
+        before_price
     )
 
-    if not price_numbers:
+    if not quantity_match:
         return {
-            "error": (
-                "Could not identify "
-                "product price"
-            ),
+            "error": "Could not identify quantity",
             "heard": original_text
         }
 
-    price = float(
-        price_numbers[-1]
-    )
+    quantity = int(quantity_match.group(1))
+
+    # Everything before quantity = customer
+    customer_text = before_price[
+        :quantity_match.start()
+    ].strip()
+
+    # Everything after quantity = product
+    product_text = before_price[
+        quantity_match.end():
+    ].strip()
+
+    # Remove optional filler words
+    customer_text = re.sub(
+        r"\b(for|to)\s*$",
+        "",
+        customer_text,
+        flags=re.IGNORECASE
+    ).strip()
+
+    product_text = re.sub(
+        r"^(of\s+)",
+        "",
+        product_text,
+        flags=re.IGNORECASE
+    ).strip()
+
+    if not customer_text:
+        return {
+            "error": "Could not identify customer name",
+            "heard": original_text
+        }
+
+    if not product_text:
+        return {
+            "error": "Could not identify product",
+            "heard": original_text
+        }
+
+    # Capitalize every word in the customer name
+    customer = customer_text.title()
+
+    # Preserve multi-word product
+    product = product_text
 
     add_audit_log(
         "voice_command_parsed",
@@ -1048,7 +1060,6 @@ def parse_voice_command(command: VoiceCommand):
         "heard": original_text,
         "status": "parsed"
     }
-
 
 # --------------------------------------------------
 # PAYMENT LINK
