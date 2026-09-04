@@ -93,6 +93,10 @@ class PaymentLinkRequest(BaseModel):
     amount: float
 
 
+class BusinessQuery(BaseModel):
+    text: str
+
+
 # --------------------------------------------------
 # HOME
 # --------------------------------------------------
@@ -138,9 +142,7 @@ def preview_invoice(invoice: InvoiceData):
     error = validate_invoice(invoice)
 
     if error:
-        return {
-            "error": error
-        }
+        return {"error": error}
 
     subtotal = invoice.quantity * invoice.price
     gst_amount = subtotal * (invoice.gst / 100)
@@ -169,9 +171,7 @@ def create_invoice(invoice: InvoiceData):
     error = validate_invoice(invoice)
 
     if error:
-        return {
-            "error": error
-        }
+        return {"error": error}
 
     subtotal = invoice.quantity * invoice.price
     gst_amount = subtotal * (invoice.gst / 100)
@@ -264,10 +264,7 @@ def dashboard_summary():
     connection = get_db_connection()
 
     total_invoices = connection.execute(
-        """
-        SELECT COUNT(*) AS count
-        FROM invoices
-        """
+        "SELECT COUNT(*) AS count FROM invoices"
     ).fetchone()["count"]
 
     paid_invoices = connection.execute(
@@ -310,6 +307,94 @@ def dashboard_summary():
         "pending_invoices": pending_invoices,
         "total_collected": total_collected,
         "pending_amount": pending_amount
+    }
+
+
+# --------------------------------------------------
+# BUSINESS QUERY
+# --------------------------------------------------
+
+@app.post("/business/query")
+def business_query(query: BusinessQuery):
+
+    text = query.text.strip().lower()
+
+    if not text:
+        return {
+            "error": "Query cannot be empty"
+        }
+
+    connection = get_db_connection()
+
+    pending_phrases = [
+        "who hasn't paid",
+        "who has not paid",
+        "who havent paid",
+        "who hasn't paid me",
+        "pending invoices",
+        "show pending invoices",
+        "unpaid invoices",
+        "who owes me"
+    ]
+
+    if any(phrase in text for phrase in pending_phrases):
+
+        invoices = connection.execute(
+            """
+            SELECT
+                invoice_id,
+                customer,
+                product,
+                total,
+                payment_status
+            FROM invoices
+            WHERE payment_status = 'pending'
+            ORDER BY created_at DESC
+            """
+        ).fetchall()
+
+        connection.close()
+
+        pending_list = [
+            dict(invoice)
+            for invoice in invoices
+        ]
+
+        if not pending_list:
+            return {
+                "intent": "pending_invoices",
+                "answer": "Great! You have no pending invoices.",
+                "invoices": []
+            }
+
+        total_pending = sum(
+            invoice["total"]
+            for invoice in pending_list
+        )
+
+        customers = ", ".join(
+            invoice["customer"]
+            for invoice in pending_list
+        )
+
+        return {
+            "intent": "pending_invoices",
+            "answer": (
+                f"{len(pending_list)} invoice(s) are pending "
+                f"from {customers}. "
+                f"Total pending amount is ₹{total_pending:.2f}."
+            ),
+            "invoices": pending_list
+        }
+
+    connection.close()
+
+    return {
+        "error": "I don't understand that business query yet.",
+        "examples": [
+            "Who hasn't paid me?",
+            "Show pending invoices"
+        ]
     }
 
 
@@ -408,7 +493,6 @@ def parse_voice_command(command: VoiceCommand):
             }
 
         gst = float(gst_reverse_match.group(1))
-
         price_section = remaining_after_item[
             :gst_reverse_match.start()
         ]
@@ -446,26 +530,20 @@ def parse_voice_command(command: VoiceCommand):
 
 
 # --------------------------------------------------
-# CREATE AND SAVE MOCK RAZORPAY PAYMENT LINK
+# CREATE PAYMENT LINK
 # --------------------------------------------------
 
 @app.post("/payment-link/create")
 def create_payment_link(request: PaymentLinkRequest):
 
     if not request.invoice_id.strip():
-        return {
-            "error": "Invoice ID is required"
-        }
+        return {"error": "Invoice ID is required"}
 
     if not request.customer.strip():
-        return {
-            "error": "Customer name is required"
-        }
+        return {"error": "Customer name is required"}
 
     if request.amount <= 0:
-        return {
-            "error": "Payment amount must be greater than 0"
-        }
+        return {"error": "Payment amount must be greater than 0"}
 
     connection = get_db_connection()
 
@@ -480,15 +558,9 @@ def create_payment_link(request: PaymentLinkRequest):
 
     if not invoice:
         connection.close()
+        return {"error": "Invoice not found"}
 
-        return {
-            "error": "Invoice not found"
-        }
-
-    payment_link_id = (
-        "plink_" + str(uuid.uuid4())[:10]
-    )
-
+    payment_link_id = "plink_" + str(uuid.uuid4())[:10]
     created_at = datetime.now().isoformat()
 
     connection.execute(
@@ -554,9 +626,7 @@ def get_payment_link(payment_link_id: str):
     connection.close()
 
     if not payment:
-        return {
-            "error": "Payment link not found"
-        }
+        return {"error": "Payment link not found"}
 
     return dict(payment)
 
@@ -581,33 +651,24 @@ def complete_mock_payment(payment_link_id: str):
 
     if not payment:
         connection.close()
-
-        return {
-            "error": "Payment link not found"
-        }
+        return {"error": "Payment link not found"}
 
     connection.execute(
         """
         UPDATE payment_links
-        SET payment_status = ?
+        SET payment_status = 'paid'
         WHERE payment_link_id = ?
         """,
-        (
-            "paid",
-            payment_link_id
-        )
+        (payment_link_id,)
     )
 
     connection.execute(
         """
         UPDATE invoices
-        SET payment_status = ?
+        SET payment_status = 'paid'
         WHERE invoice_id = ?
         """,
-        (
-            "paid",
-            payment["invoice_id"]
-        )
+        (payment["invoice_id"],)
     )
 
     connection.commit()
