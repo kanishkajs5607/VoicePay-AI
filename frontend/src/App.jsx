@@ -37,7 +37,7 @@ function App() {
 
     recognition.lang = "en-IN";
     recognition.interimResults = false;
-    recognition.continuous = false;
+    recognition.continuous = true;
 
     recognition.onstart = () => {
       setIsListening(true);

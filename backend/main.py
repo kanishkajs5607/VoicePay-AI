@@ -5,11 +5,8 @@ from datetime import datetime
 import uuid
 import re
 
-
 app = FastAPI(title="VoicePay AI Backend")
 
-
-# Allow React frontend to communicate with FastAPI
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -18,10 +15,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-# -------------------------
-# DATA MODELS
-# -------------------------
 
 class InvoiceData(BaseModel):
     customer: str
@@ -35,20 +28,12 @@ class VoiceCommand(BaseModel):
     text: str
 
 
-# -------------------------
-# HOME
-# -------------------------
-
 @app.get("/")
 def home():
     return {
         "message": "VoicePay AI backend is running"
     }
 
-
-# -------------------------
-# VALIDATION
-# -------------------------
 
 def validate_invoice(invoice: InvoiceData):
 
@@ -70,10 +55,6 @@ def validate_invoice(invoice: InvoiceData):
     return None
 
 
-# -------------------------
-# INVOICE PREVIEW
-# -------------------------
-
 @app.post("/invoice/preview")
 def preview_invoice(invoice: InvoiceData):
 
@@ -85,9 +66,7 @@ def preview_invoice(invoice: InvoiceData):
         }
 
     subtotal = invoice.quantity * invoice.price
-
     gst_amount = subtotal * (invoice.gst / 100)
-
     total = subtotal + gst_amount
 
     return {
@@ -103,10 +82,6 @@ def preview_invoice(invoice: InvoiceData):
     }
 
 
-# -------------------------
-# CREATE INVOICE
-# -------------------------
-
 @app.post("/invoice/create")
 def create_invoice(invoice: InvoiceData):
 
@@ -118,9 +93,7 @@ def create_invoice(invoice: InvoiceData):
         }
 
     subtotal = invoice.quantity * invoice.price
-
     gst_amount = subtotal * (invoice.gst / 100)
-
     total = subtotal + gst_amount
 
     invoice_id = "INV-" + str(uuid.uuid4())[:8].upper()
@@ -139,10 +112,6 @@ def create_invoice(invoice: InvoiceData):
     }
 
 
-# -------------------------
-# NATURAL LANGUAGE COMMAND
-# -------------------------
-
 @app.post("/voice/parse")
 def parse_voice_command(command: VoiceCommand):
 
@@ -153,44 +122,47 @@ def parse_voice_command(command: VoiceCommand):
             "error": "Voice command is empty"
         }
 
+    cleaned_text = (
+        text.lower()
+        .replace(",", " ")
+        .replace(".", " ")
+        .replace("rupees", "")
+        .replace("rupee", "")
+        .replace("rs.", "")
+        .replace("rs", "")
+    )
+
+    cleaned_text = re.sub(r"\s+", " ", cleaned_text).strip()
+
     pattern = (
-        r"(?:create invoice for|invoice for)\s+"
-        r"([A-Za-z]+).*?"
-        r"(\d+)\s+([A-Za-z]+).*?"
+        r"(?:create\s+invoice\s+for|invoice\s+for)\s+"
+        r"([a-z]+).*?"
+        r"(\d+)\s+([a-z]+).*?"
         r"(?:at|for)\s+(\d+(?:\.\d+)?)"
-        r".*?(?:gst)\s*(\d+(?:\.\d+)?)"
+        r".*?gst\s*(\d+(?:\.\d+)?)"
     )
 
     match = re.search(
         pattern,
-        text,
+        cleaned_text,
         re.IGNORECASE
     )
 
     if not match:
         return {
-            "error": "Could not understand the command",
+            "error": "Could not understand the voice command",
+            "heard": text,
             "example": (
                 "Create invoice for Arun, "
                 "2 notebooks at 100 rupees GST 18"
             )
         }
 
-    customer = match.group(1)
-
-    quantity = int(
-        match.group(2)
-    )
-
+    customer = match.group(1).title()
+    quantity = int(match.group(2))
     product = match.group(3)
-
-    price = float(
-        match.group(4)
-    )
-
-    gst = float(
-        match.group(5)
-    )
+    price = float(match.group(4))
+    gst = float(match.group(5))
 
     return {
         "intent": "create_invoice",
