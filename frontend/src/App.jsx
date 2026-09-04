@@ -7,6 +7,8 @@ function App() {
   const [price, setPrice] = useState("");
   const [gst, setGst] = useState("");
 
+  const [voiceText, setVoiceText] = useState("");
+
   const [result, setResult] = useState(null);
   const [createdInvoice, setCreatedInvoice] = useState(null);
   const [error, setError] = useState("");
@@ -19,6 +21,45 @@ function App() {
     gst: Number(gst),
   };
 
+  // Process natural-language command
+  const handleVoiceCommand = async () => {
+    setError("");
+    setResult(null);
+    setCreatedInvoice(null);
+
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:8000/voice/parse",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            text: voiceText,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.error) {
+        setError(data.error);
+        return;
+      }
+
+      // Automatically fill invoice form
+      setCustomer(data.customer);
+      setProduct(data.product);
+      setQuantity(data.quantity.toString());
+      setPrice(data.price.toString());
+      setGst(data.gst.toString());
+    } catch (err) {
+      setError("Unable to process voice command.");
+    }
+  };
+
+  // Generate invoice preview
   const handlePreview = async () => {
     setError("");
     setResult(null);
@@ -49,6 +90,7 @@ function App() {
     }
   };
 
+  // Create final invoice
   const handleCreate = async () => {
     setError("");
 
@@ -85,7 +127,24 @@ function App() {
         Multilingual voice assistant for invoices and payments.
       </p>
 
-      <button>🎤 Start Voice Command</button>
+      <h2>AI Command</h2>
+
+      <input
+        type="text"
+        placeholder="Try: Create invoice for Arun, 2 notebooks at 100 rupees GST 18"
+        value={voiceText}
+        onChange={(e) => setVoiceText(e.target.value)}
+        style={{ width: "500px" }}
+      />
+
+      <br />
+      <br />
+
+      <button onClick={handleVoiceCommand}>
+        ✨ Process Command
+      </button>
+
+      <hr />
 
       <h2>Create Invoice</h2>
 
@@ -96,7 +155,8 @@ function App() {
         onChange={(e) => setCustomer(e.target.value)}
       />
 
-      <br /><br />
+      <br />
+      <br />
 
       <input
         type="text"
@@ -105,7 +165,8 @@ function App() {
         onChange={(e) => setProduct(e.target.value)}
       />
 
-      <br /><br />
+      <br />
+      <br />
 
       <input
         type="number"
@@ -114,7 +175,8 @@ function App() {
         onChange={(e) => setQuantity(e.target.value)}
       />
 
-      <br /><br />
+      <br />
+      <br />
 
       <input
         type="number"
@@ -123,7 +185,8 @@ function App() {
         onChange={(e) => setPrice(e.target.value)}
       />
 
-      <br /><br />
+      <br />
+      <br />
 
       <input
         type="number"
@@ -132,7 +195,8 @@ function App() {
         onChange={(e) => setGst(e.target.value)}
       />
 
-      <br /><br />
+      <br />
+      <br />
 
       <button onClick={handlePreview}>
         Preview Invoice
@@ -168,10 +232,22 @@ function App() {
       {createdInvoice && (
         <div>
           <h3>✅ Invoice Created</h3>
-          <p>Invoice ID: {createdInvoice.invoice_id}</p>
-          <p>Customer: {createdInvoice.customer}</p>
-          <p>Total: ₹{createdInvoice.total}</p>
-          <p>Payment Status: {createdInvoice.payment_status}</p>
+
+          <p>
+            Invoice ID: {createdInvoice.invoice_id}
+          </p>
+
+          <p>
+            Customer: {createdInvoice.customer}
+          </p>
+
+          <p>
+            Total: ₹{createdInvoice.total}
+          </p>
+
+          <p>
+            Payment Status: {createdInvoice.payment_status}
+          </p>
         </div>
       )}
     </div>
