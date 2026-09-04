@@ -19,6 +19,9 @@ function App() {
 
   const [dashboard, setDashboard] = useState(null);
 
+  const [businessQuery, setBusinessQuery] = useState("");
+  const [businessAnswer, setBusinessAnswer] = useState(null);
+
   const [error, setError] = useState("");
 
   const currentPath = window.location.pathname;
@@ -299,6 +302,42 @@ function App() {
     }
   };
 
+  const handleBusinessQuery = async () => {
+    setError("");
+    setBusinessAnswer(null);
+
+    if (!businessQuery.trim()) {
+      setError("Enter a business question.");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:8000/business/query",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            text: businessQuery,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.error) {
+        setError(data.error);
+        return;
+      }
+
+      setBusinessAnswer(data);
+    } catch {
+      setError("Unable to process business query.");
+    }
+  };
+
   if (isPaymentPage) {
     return (
       <div>
@@ -320,9 +359,7 @@ function App() {
 
             <p>
               Payment Link ID:{" "}
-              <strong>
-                {paymentPageData.payment_link_id}
-              </strong>
+              <strong>{paymentPageData.payment_link_id}</strong>
             </p>
 
             <p>
@@ -361,9 +398,7 @@ function App() {
                   Payment has been recorded in VoicePay AI.
                 </p>
 
-                <p>
-                  No real money was charged.
-                </p>
+                <p>No real money was charged.</p>
               </>
             )}
           </div>
@@ -377,7 +412,7 @@ function App() {
       <h1>VoicePay AI</h1>
 
       <p>
-        Multilingual voice assistant for invoices and payments.
+        Voice assistant for invoices, payments and business insights.
       </p>
 
       <hr />
@@ -417,7 +452,52 @@ function App() {
 
       <hr />
 
-      <h2>AI Voice Command</h2>
+      <h2>Ask About Your Business</h2>
+
+      <input
+        type="text"
+        placeholder="Try: Who hasn't paid me?"
+        value={businessQuery}
+        onChange={(e) => setBusinessQuery(e.target.value)}
+        style={{ width: "500px" }}
+      />
+
+      <br />
+      <br />
+
+      <button onClick={handleBusinessQuery}>
+        Ask VoicePay
+      </button>
+
+      {businessAnswer && (
+        <div>
+          <h3>VoicePay Answer</h3>
+
+          <p>
+            <strong>{businessAnswer.answer}</strong>
+          </p>
+
+          {businessAnswer.invoices &&
+            businessAnswer.invoices.length > 0 && (
+              <div>
+                <h4>Pending Invoices</h4>
+
+                {businessAnswer.invoices.map((invoice) => (
+                  <div key={invoice.invoice_id}>
+                    <p>
+                      {invoice.customer} — ₹{invoice.total} —{" "}
+                      {invoice.payment_status}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+        </div>
+      )}
+
+      <hr />
+
+      <h2>Voice Invoice Command</h2>
 
       <button onClick={startListening}>
         {isListening
@@ -532,21 +612,14 @@ function App() {
         <div>
           <h3>✅ Invoice Created</h3>
 
-          <p>
-            Invoice ID: {createdInvoice.invoice_id}
-          </p>
+          <p>Invoice ID: {createdInvoice.invoice_id}</p>
+
+          <p>Customer: {createdInvoice.customer}</p>
+
+          <p>Total: ₹{createdInvoice.total}</p>
 
           <p>
-            Customer: {createdInvoice.customer}
-          </p>
-
-          <p>
-            Total: ₹{createdInvoice.total}
-          </p>
-
-          <p>
-            Payment Status:{" "}
-            {createdInvoice.payment_status}
+            Payment Status: {createdInvoice.payment_status}
           </p>
 
           <button onClick={handleGeneratePaymentLink}>
@@ -560,21 +633,14 @@ function App() {
           <h3>💳 Payment Link Created</h3>
 
           <p>
-            Payment Link ID:{" "}
-            {paymentLink.payment_link_id}
+            Payment Link ID: {paymentLink.payment_link_id}
           </p>
 
-          <p>
-            Amount: ₹{paymentLink.amount}
-          </p>
+          <p>Amount: ₹{paymentLink.amount}</p>
 
-          <p>
-            Status: {paymentLink.payment_status}
-          </p>
+          <p>Status: {paymentLink.payment_status}</p>
 
-          <p>
-            Provider: {paymentLink.provider}
-          </p>
+          <p>Provider: {paymentLink.provider}</p>
 
           <a
             href={paymentLink.payment_url}
