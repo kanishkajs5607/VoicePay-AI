@@ -124,12 +124,16 @@ def parse_voice_command(command: VoiceCommand):
 
     cleaned_text = (
         text.lower()
+        .replace("₹", "")
         .replace(",", " ")
         .replace(".", " ")
         .replace("rupees", "")
         .replace("rupee", "")
         .replace("rs.", "")
         .replace("rs", "")
+        .replace("₹", "")
+        .replace("percentage", "")
+        .replace("percent", "")
     )
 
     cleaned_text = re.sub(r"\s+", " ", cleaned_text).strip()
