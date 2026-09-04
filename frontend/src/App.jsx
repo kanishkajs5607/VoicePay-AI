@@ -8,6 +8,7 @@ function App() {
   const [gst, setGst] = useState("");
 
   const [voiceText, setVoiceText] = useState("");
+  const [isListening, setIsListening] = useState(false);
 
   const [result, setResult] = useState(null);
   const [createdInvoice, setCreatedInvoice] = useState(null);
@@ -21,7 +22,46 @@ function App() {
     gst: Number(gst),
   };
 
-  // Process natural-language command
+  const startListening = () => {
+    setError("");
+
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setError("Speech recognition is not supported in this browser.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+
+    recognition.lang = "en-IN";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+    };
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+
+      setVoiceText(transcript);
+      setIsListening(false);
+    };
+
+    recognition.onerror = () => {
+      setError("Could not recognize your voice. Please try again.");
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.start();
+  };
+
   const handleVoiceCommand = async () => {
     setError("");
     setResult(null);
@@ -48,7 +88,6 @@ function App() {
         return;
       }
 
-      // Automatically fill invoice form
       setCustomer(data.customer);
       setProduct(data.product);
       setQuantity(data.quantity.toString());
@@ -59,7 +98,6 @@ function App() {
     }
   };
 
-  // Generate invoice preview
   const handlePreview = async () => {
     setError("");
     setResult(null);
@@ -90,7 +128,6 @@ function App() {
     }
   };
 
-  // Create final invoice
   const handleCreate = async () => {
     setError("");
 
@@ -127,7 +164,14 @@ function App() {
         Multilingual voice assistant for invoices and payments.
       </p>
 
-      <h2>AI Command</h2>
+      <h2>AI Voice Command</h2>
+
+      <button onClick={startListening}>
+        {isListening ? "🎤 Listening..." : "🎤 Start Voice Command"}
+      </button>
+
+      <br />
+      <br />
 
       <input
         type="text"
@@ -233,21 +277,10 @@ function App() {
         <div>
           <h3>✅ Invoice Created</h3>
 
-          <p>
-            Invoice ID: {createdInvoice.invoice_id}
-          </p>
-
-          <p>
-            Customer: {createdInvoice.customer}
-          </p>
-
-          <p>
-            Total: ₹{createdInvoice.total}
-          </p>
-
-          <p>
-            Payment Status: {createdInvoice.payment_status}
-          </p>
+          <p>Invoice ID: {createdInvoice.invoice_id}</p>
+          <p>Customer: {createdInvoice.customer}</p>
+          <p>Total: ₹{createdInvoice.total}</p>
+          <p>Payment Status: {createdInvoice.payment_status}</p>
         </div>
       )}
     </div>
