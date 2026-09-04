@@ -12,6 +12,7 @@ function App() {
 
   const [result, setResult] = useState(null);
   const [createdInvoice, setCreatedInvoice] = useState(null);
+  const [paymentLink, setPaymentLink] = useState(null);
   const [error, setError] = useState("");
 
   const invoiceData = {
@@ -44,10 +45,13 @@ function App() {
     };
 
     recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
+      let transcript = "";
 
-      setVoiceText(transcript);
-      setIsListening(false);
+      for (let i = 0; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript + " ";
+      }
+
+      setVoiceText(transcript.trim());
     };
 
     recognition.onerror = () => {
@@ -66,6 +70,7 @@ function App() {
     setError("");
     setResult(null);
     setCreatedInvoice(null);
+    setPaymentLink(null);
 
     try {
       const response = await fetch(
@@ -102,6 +107,7 @@ function App() {
     setError("");
     setResult(null);
     setCreatedInvoice(null);
+    setPaymentLink(null);
 
     try {
       const response = await fetch(
@@ -130,6 +136,7 @@ function App() {
 
   const handleCreate = async () => {
     setError("");
+    setPaymentLink(null);
 
     try {
       const response = await fetch(
@@ -153,6 +160,43 @@ function App() {
       setCreatedInvoice(data);
     } catch (err) {
       setError("Unable to create invoice.");
+    }
+  };
+
+  const handleGeneratePaymentLink = async () => {
+    setError("");
+
+    if (!createdInvoice) {
+      setError("Create an invoice first.");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:8000/payment-link/create",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            invoice_id: createdInvoice.invoice_id,
+            customer: createdInvoice.customer,
+            amount: createdInvoice.total,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.error) {
+        setError(data.error);
+        return;
+      }
+
+      setPaymentLink(data);
+    } catch (err) {
+      setError("Unable to generate payment link.");
     }
   };
 
@@ -281,6 +325,29 @@ function App() {
           <p>Customer: {createdInvoice.customer}</p>
           <p>Total: ₹{createdInvoice.total}</p>
           <p>Payment Status: {createdInvoice.payment_status}</p>
+
+          <button onClick={handleGeneratePaymentLink}>
+            Generate Payment Link
+          </button>
+        </div>
+      )}
+
+      {paymentLink && (
+        <div>
+          <h3>💳 Payment Link Created</h3>
+
+          <p>Payment Link ID: {paymentLink.payment_link_id}</p>
+          <p>Amount: ₹{paymentLink.amount}</p>
+          <p>Status: {paymentLink.payment_status}</p>
+          <p>Provider: {paymentLink.provider}</p>
+
+          <a
+            href={paymentLink.payment_url}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open Payment Link
+          </a>
         </div>
       )}
     </div>
