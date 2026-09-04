@@ -9,7 +9,6 @@ import re
 app = FastAPI(title="VoicePay AI Backend")
 
 
-# Allow React frontend to communicate with FastAPI
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -53,7 +52,7 @@ def home():
 
 
 # --------------------------------------------------
-# INVOICE VALIDATION
+# VALIDATION
 # --------------------------------------------------
 
 def validate_invoice(invoice: InvoiceData):
@@ -86,9 +85,7 @@ def preview_invoice(invoice: InvoiceData):
     error = validate_invoice(invoice)
 
     if error:
-        return {
-            "error": error
-        }
+        return {"error": error}
 
     subtotal = invoice.quantity * invoice.price
     gst_amount = subtotal * (invoice.gst / 100)
@@ -117,9 +114,7 @@ def create_invoice(invoice: InvoiceData):
     error = validate_invoice(invoice)
 
     if error:
-        return {
-            "error": error
-        }
+        return {"error": error}
 
     subtotal = invoice.quantity * invoice.price
     gst_amount = subtotal * (invoice.gst / 100)
@@ -142,67 +137,129 @@ def create_invoice(invoice: InvoiceData):
 
 
 # --------------------------------------------------
-# NATURAL LANGUAGE / VOICE COMMAND PARSER
+# VOICE COMMAND PARSER
 # --------------------------------------------------
 
 @app.post("/voice/parse")
 def parse_voice_command(command: VoiceCommand):
 
-    text = command.text.strip()
+    original_text = command.text.strip()
 
-    if not text:
+    if not original_text:
         return {
             "error": "Voice command is empty"
         }
 
-    cleaned_text = (
-        text.lower()
+    text = original_text.lower()
+
+    # Normalize common speech-recognition variations
+    text = (
+        text
         .replace(",", " ")
-        .replace(".", " ")
-        .replace("₹", "")
-        .replace("rupees", "")
-        .replace("rupee", "")
-        .replace("rs.", "")
-        .replace("rs", "")
-        .replace("percentage", "")
-        .replace("percent", "")
+        .replace("₹", " ")
+        .replace("%", " ")
+        .replace("rupees", " ")
+        .replace("rupee", " ")
+        .replace("rs.", " ")
+        .replace("rs", " ")
+        .replace("percentage", " ")
+        .replace("percent", " ")
     )
 
-    cleaned_text = re.sub(
-        r"\s+",
-        " ",
-        cleaned_text
-    ).strip()
+    text = re.sub(r"\s+", " ", text).strip()
 
-    pattern = (
-        r"(?:create\s+invoice\s+for|invoice\s+for)\s+"
-        r"([a-z]+).*?"
-        r"(\d+)\s+([a-z]+).*?"
-        r"(?:at|for)\s+(\d+(?:\.\d+)?)"
-        r".*?gst\s*(\d+(?:\.\d+)?)"
+    # Remove beginning instruction
+    text = re.sub(
+        r"^(please\s+)?(create\s+)?(?:an?\s+)?invoice\s+for\s+",
+        "",
+        text,
+        flags=re.IGNORECASE
     )
 
-    match = re.search(
-        pattern,
-        cleaned_text,
+    # Customer name
+    customer_match = re.match(
+        r"([a-z]+)",
+        text,
         re.IGNORECASE
     )
 
-    if not match:
+    if not customer_match:
         return {
-            "error": "Could not understand the voice command",
-            "heard": text,
-            "example": (
-                "Create invoice for Arun, "
-                "2 notebooks at 100 rupees GST 18"
-            )
+            "error": "Could not identify customer name",
+            "heard": original_text
         }
 
-    customer = match.group(1).title()
-    quantity = int(match.group(2))
-    product = match.group(3)
-    price = float(match.group(4))
-    gst = float(match.group(5))
+    customer = customer_match.group(1).title()
+
+    remaining = text[customer_match.end():].strip()
+
+    # Quantity + product
+    item_match = re.search(
+        r"(\d+)\s+([a-z]+)",
+        remaining,
+        re.IGNORECASE
+    )
+
+    if not item_match:
+        return {
+            "error": "Could not identify quantity and product",
+            "heard": original_text
+        }
+
+    quantity = int(item_match.group(1))
+    product = item_match.group(2)
+
+    remaining_after_item = remaining[item_match.end():].strip()
+
+    # Find GST value
+    gst_match = re.search(
+        r"gst\s*(?:of\s*)?(\d+(?:\.\d+)?)",
+        remaining_after_item,
+        re.IGNORECASE
+    )
+
+    if gst_match:
+        gst = float(gst_match.group(1))
+
+        price_section = remaining_after_item[:gst_match.start()]
+    else:
+        # Also support formats like "12 GST"
+        gst_reverse_match = re.search(
+            r"(\d+(?:\.\d+)?)\s*gst",
+            remaining_after_item,
+            re.IGNORECASE
+        )
+
+        if not gst_reverse_match:
+            return {
+                "error": "Could not identify GST",
+                "heard": original_text
+            }
+
+        gst = float(gst_reverse_match.group(1))
+
+        price_section = remaining_after_item[:gst_reverse_match.start()]
+
+    # Remove common price words
+    price_section = re.sub(
+        r"\b(at|for|each|price|cost|costing)\b",
+        " ",
+        price_section,
+        flags=re.IGNORECASE
+    )
+
+    price_numbers = re.findall(
+        r"\d+(?:\.\d+)?",
+        price_section
+    )
+
+    if not price_numbers:
+        return {
+            "error": "Could not identify product price",
+            "heard": original_text
+        }
+
+    price = float(price_numbers[-1])
 
     return {
         "intent": "create_invoice",
@@ -211,6 +268,7 @@ def parse_voice_command(command: VoiceCommand):
         "quantity": quantity,
         "price": price,
         "gst": gst,
+        "heard": original_text,
         "status": "parsed"
     }
 
