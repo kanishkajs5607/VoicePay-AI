@@ -21,6 +21,7 @@ function App() {
 
   const [businessQuery, setBusinessQuery] = useState("");
   const [businessAnswer, setBusinessAnswer] = useState(null);
+  const [isBusinessListening, setIsBusinessListening] = useState(false);
 
   const [error, setError] = useState("");
 
@@ -134,6 +135,49 @@ function App() {
 
     recognition.onend = () => {
       setIsListening(false);
+    };
+
+    recognition.start();
+  };
+
+  const startBusinessListening = () => {
+    setError("");
+
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setError(
+        "Speech recognition is not supported in this browser."
+      );
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+
+    recognition.lang = "en-IN";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+
+    recognition.onstart = () => {
+      setIsBusinessListening(true);
+    };
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+
+      setBusinessQuery(transcript);
+    };
+
+    recognition.onerror = () => {
+      setError(
+        "Could not recognize your business question."
+      );
+      setIsBusinessListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsBusinessListening(false);
     };
 
     recognition.start();
@@ -454,6 +498,15 @@ function App() {
 
       <h2>Ask About Your Business</h2>
 
+      <button onClick={startBusinessListening}>
+        {isBusinessListening
+          ? "🎤 Listening..."
+          : "🎤 Ask by Voice"}
+      </button>
+
+      <br />
+      <br />
+
       <input
         type="text"
         placeholder="Try: Who hasn't paid me?"
@@ -613,14 +666,9 @@ function App() {
           <h3>✅ Invoice Created</h3>
 
           <p>Invoice ID: {createdInvoice.invoice_id}</p>
-
           <p>Customer: {createdInvoice.customer}</p>
-
           <p>Total: ₹{createdInvoice.total}</p>
-
-          <p>
-            Payment Status: {createdInvoice.payment_status}
-          </p>
+          <p>Payment Status: {createdInvoice.payment_status}</p>
 
           <button onClick={handleGeneratePaymentLink}>
             Generate Payment Link
@@ -637,9 +685,7 @@ function App() {
           </p>
 
           <p>Amount: ₹{paymentLink.amount}</p>
-
           <p>Status: {paymentLink.payment_status}</p>
-
           <p>Provider: {paymentLink.provider}</p>
 
           <a
