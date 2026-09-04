@@ -247,10 +247,7 @@ def get_invoices():
     connection.close()
 
     return {
-        "invoices": [
-            dict(invoice)
-            for invoice in invoices
-        ]
+        "invoices": [dict(invoice) for invoice in invoices]
     }
 
 
@@ -355,15 +352,12 @@ def business_query(query: BusinessQuery):
 
         connection.close()
 
-        pending_list = [
-            dict(invoice)
-            for invoice in invoices
-        ]
+        pending_list = [dict(invoice) for invoice in invoices]
 
         if not pending_list:
             return {
                 "intent": "pending_invoices",
-                "answer": "Great! You have no pending invoices.",
+                "answer": "You have no pending invoices.",
                 "invoices": []
             }
 
@@ -387,13 +381,50 @@ def business_query(query: BusinessQuery):
             "invoices": pending_list
         }
 
+    collection_phrases = [
+        "how much did i collect",
+        "how much have i collected",
+        "total collected",
+        "money collected",
+        "how much money did i collect",
+        "how much money have i collected",
+        "what did i collect"
+    ]
+
+    if any(phrase in text for phrase in collection_phrases):
+
+        result = connection.execute(
+            """
+            SELECT
+                COUNT(*) AS paid_count,
+                COALESCE(SUM(total), 0) AS collected
+            FROM invoices
+            WHERE payment_status = 'paid'
+            """
+        ).fetchone()
+
+        connection.close()
+
+        paid_count = result["paid_count"]
+        collected = result["collected"]
+
+        return {
+            "intent": "total_collected",
+            "answer": (
+                f"You have collected ₹{collected:.2f} "
+                f"from {paid_count} paid invoice(s)."
+            ),
+            "total_collected": collected,
+            "paid_invoices": paid_count
+        }
+
     connection.close()
 
     return {
         "error": "I don't understand that business query yet.",
         "examples": [
             "Who hasn't paid me?",
-            "Show pending invoices"
+            "How much did I collect?"
         ]
     }
 
