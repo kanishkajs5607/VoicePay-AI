@@ -6,10 +6,15 @@ function App() {
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
   const [gst, setGst] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
 
   const subtotal = Number(quantity || 0) * Number(price || 0);
   const gstAmount = subtotal * (Number(gst || 0) / 100);
   const total = subtotal + gstAmount;
+
+  const handleConfirm = () => {
+    setConfirmed(true);
+  };
 
   return (
     <div>
@@ -67,7 +72,15 @@ function App() {
       <p>GST: ₹{gstAmount.toFixed(2)}</p>
       <p><strong>Total: ₹{total.toFixed(2)}</strong></p>
 
-      <button>Create Invoice</button>
+      <button onClick={handleConfirm}>
+        Confirm Invoice
+      </button>
+
+      {confirmed && (
+        <p>
+          ✅ Invoice confirmed. Ready to send to Razorpay.
+        </p>
+      )}
     </div>
   );
 }
