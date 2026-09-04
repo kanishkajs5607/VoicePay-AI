@@ -19,10 +19,6 @@ app.add_middleware(
 )
 
 
-# --------------------------------------------------
-# DATABASE
-# --------------------------------------------------
-
 DATABASE = "voicepay.db"
 
 
@@ -71,10 +67,6 @@ def create_tables():
 create_tables()
 
 
-# --------------------------------------------------
-# DATA MODELS
-# --------------------------------------------------
-
 class InvoiceData(BaseModel):
     customer: str
     product: str
@@ -97,9 +89,9 @@ class BusinessQuery(BaseModel):
     text: str
 
 
-# --------------------------------------------------
-# HOME
-# --------------------------------------------------
+class ReminderRequest(BaseModel):
+    invoice_id: str
+
 
 @app.get("/")
 def home():
@@ -107,10 +99,6 @@ def home():
         "message": "VoicePay AI backend is running"
     }
 
-
-# --------------------------------------------------
-# VALIDATION
-# --------------------------------------------------
 
 def validate_invoice(invoice: InvoiceData):
 
@@ -131,10 +119,6 @@ def validate_invoice(invoice: InvoiceData):
 
     return None
 
-
-# --------------------------------------------------
-# INVOICE PREVIEW
-# --------------------------------------------------
 
 @app.post("/invoice/preview")
 def preview_invoice(invoice: InvoiceData):
@@ -160,10 +144,6 @@ def preview_invoice(invoice: InvoiceData):
         "status": "ready_for_confirmation"
     }
 
-
-# --------------------------------------------------
-# CREATE AND SAVE INVOICE
-# --------------------------------------------------
 
 @app.post("/invoice/create")
 def create_invoice(invoice: InvoiceData):
@@ -227,10 +207,6 @@ def create_invoice(invoice: InvoiceData):
     }
 
 
-# --------------------------------------------------
-# GET ALL INVOICES
-# --------------------------------------------------
-
 @app.get("/invoices")
 def get_invoices():
 
@@ -250,10 +226,6 @@ def get_invoices():
         "invoices": [dict(invoice) for invoice in invoices]
     }
 
-
-# --------------------------------------------------
-# DASHBOARD SUMMARY
-# --------------------------------------------------
 
 @app.get("/dashboard/summary")
 def dashboard_summary():
@@ -306,10 +278,6 @@ def dashboard_summary():
         "pending_amount": pending_amount
     }
 
-
-# --------------------------------------------------
-# BUSINESS QUERY
-# --------------------------------------------------
 
 @app.post("/business/query")
 def business_query(query: BusinessQuery):
@@ -429,9 +397,70 @@ def business_query(query: BusinessQuery):
     }
 
 
-# --------------------------------------------------
-# VOICE COMMAND PARSER
-# --------------------------------------------------
+@app.post("/reminder/create")
+def create_reminder(request: ReminderRequest):
+
+    connection = get_db_connection()
+
+    invoice = connection.execute(
+        """
+        SELECT *
+        FROM invoices
+        WHERE invoice_id = ?
+        """,
+        (request.invoice_id,)
+    ).fetchone()
+
+    if not invoice:
+        connection.close()
+
+        return {
+            "error": "Invoice not found"
+        }
+
+    if invoice["payment_status"] == "paid":
+        connection.close()
+
+        return {
+            "error": "This invoice is already paid"
+        }
+
+    payment_link = connection.execute(
+        """
+        SELECT *
+        FROM payment_links
+        WHERE invoice_id = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        (request.invoice_id,)
+    ).fetchone()
+
+    connection.close()
+
+    if payment_link:
+        payment_url = (
+            f"http://localhost:5173/pay/"
+            f"{payment_link['payment_link_id']}"
+        )
+    else:
+        payment_url = "Payment link has not been generated yet."
+
+    message = (
+        f"Hi {invoice['customer']}, this is a friendly reminder "
+        f"that ₹{invoice['total']:.2f} is pending for invoice "
+        f"{invoice['invoice_id']}. "
+        f"Payment link: {payment_url}"
+    )
+
+    return {
+        "invoice_id": invoice["invoice_id"],
+        "customer": invoice["customer"],
+        "amount": invoice["total"],
+        "message": message,
+        "status": "reminder_ready"
+    }
+
 
 @app.post("/voice/parse")
 def parse_voice_command(command: VoiceCommand):
@@ -560,10 +589,6 @@ def parse_voice_command(command: VoiceCommand):
     }
 
 
-# --------------------------------------------------
-# CREATE PAYMENT LINK
-# --------------------------------------------------
-
 @app.post("/payment-link/create")
 def create_payment_link(request: PaymentLinkRequest):
 
@@ -636,10 +661,6 @@ def create_payment_link(request: PaymentLinkRequest):
     }
 
 
-# --------------------------------------------------
-# GET PAYMENT LINK
-# --------------------------------------------------
-
 @app.get("/payment-link/{payment_link_id}")
 def get_payment_link(payment_link_id: str):
 
@@ -661,10 +682,6 @@ def get_payment_link(payment_link_id: str):
 
     return dict(payment)
 
-
-# --------------------------------------------------
-# COMPLETE MOCK PAYMENT
-# --------------------------------------------------
 
 @app.post("/payment-link/{payment_link_id}/pay")
 def complete_mock_payment(payment_link_id: str):
