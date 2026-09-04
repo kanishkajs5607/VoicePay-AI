@@ -15,6 +15,9 @@ function App() {
   const [paymentLink, setPaymentLink] = useState(null);
   const [error, setError] = useState("");
 
+  const [mockPaymentStatus, setMockPaymentStatus] =
+    useState("pending");
+
   const currentPath = window.location.pathname;
 
   const invoiceData = {
@@ -32,7 +35,9 @@ function App() {
       window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      setError("Speech recognition is not supported in this browser.");
+      setError(
+        "Speech recognition is not supported in this browser."
+      );
       return;
     }
 
@@ -57,7 +62,9 @@ function App() {
     };
 
     recognition.onerror = () => {
-      setError("Could not recognize your voice. Please try again.");
+      setError(
+        "Could not recognize your voice. Please try again."
+      );
       setIsListening(false);
     };
 
@@ -100,7 +107,7 @@ function App() {
       setQuantity(data.quantity.toString());
       setPrice(data.price.toString());
       setGst(data.gst.toString());
-    } catch (err) {
+    } catch {
       setError("Unable to process voice command.");
     }
   };
@@ -131,7 +138,7 @@ function App() {
       }
 
       setResult(data);
-    } catch (err) {
+    } catch {
       setError("Unable to connect to backend.");
     }
   };
@@ -160,7 +167,7 @@ function App() {
       }
 
       setCreatedInvoice(data);
-    } catch (err) {
+    } catch {
       setError("Unable to create invoice.");
     }
   };
@@ -197,9 +204,13 @@ function App() {
       }
 
       setPaymentLink(data);
-    } catch (err) {
+    } catch {
       setError("Unable to generate payment link.");
     }
+  };
+
+  const handleMockPayment = () => {
+    setMockPaymentStatus("paid");
   };
 
   if (currentPath.startsWith("/pay/")) {
@@ -209,30 +220,45 @@ function App() {
       <div>
         <h1>VoicePay Payment</h1>
 
-        <p>
-          Demo payment page for Razorpay mock mode.
-        </p>
+        <p>Demo payment page for Razorpay mock mode.</p>
 
         <h2>Payment Request</h2>
 
         <p>
-          Payment Link ID: {paymentLinkId}
+          Payment Link ID: <strong>{paymentLinkId}</strong>
         </p>
 
-        <p>
-          Status: Pending
-        </p>
+        {mockPaymentStatus === "pending" ? (
+          <>
+            <p>
+              Status: <strong>Pending</strong>
+            </p>
 
-        <button>
-          💳 Pay Now
-        </button>
+            <button onClick={handleMockPayment}>
+              💳 Pay Now
+            </button>
 
-        <br />
-        <br />
+            <p>
+              ⚠️ Demo mode — no real money will be charged.
+            </p>
+          </>
+        ) : (
+          <>
+            <h2>✅ Payment Successful</h2>
 
-        <p>
-          ⚠️ Demo mode — no real money will be charged.
-        </p>
+            <p>
+              Status: <strong>Paid</strong>
+            </p>
+
+            <p>
+              Mock payment completed successfully.
+            </p>
+
+            <p>
+              No real money was charged.
+            </p>
+          </>
+        )}
       </div>
     );
   }
@@ -373,7 +399,8 @@ function App() {
           </p>
 
           <p>
-            Payment Status: {createdInvoice.payment_status}
+            Payment Status:{" "}
+            {createdInvoice.payment_status}
           </p>
 
           <button onClick={handleGeneratePaymentLink}>
@@ -390,9 +417,7 @@ function App() {
             Payment Link ID: {paymentLink.payment_link_id}
           </p>
 
-          <p>
-            Amount: ₹{paymentLink.amount}
-          </p>
+          <p>Amount: ₹{paymentLink.amount}</p>
 
           <p>
             Status: {paymentLink.payment_status}
