@@ -1,10 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from datetime import datetime
+import uuid
 
 app = FastAPI(title="VoicePay AI Backend")
 
-# Allow React frontend to communicate with FastAPI backend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -14,7 +15,6 @@ app.add_middleware(
 )
 
 
-# Invoice data structure
 class InvoiceData(BaseModel):
     customer: str
     product: str
@@ -23,38 +23,42 @@ class InvoiceData(BaseModel):
     gst: float
 
 
-# Home route
 @app.get("/")
 def home():
     return {"message": "VoicePay AI backend is running"}
 
 
-# Invoice preview route
+def validate_invoice(invoice: InvoiceData):
+    if not invoice.customer.strip():
+        return "Customer name is required"
+
+    if not invoice.product.strip():
+        return "Product name is required"
+
+    if invoice.quantity <= 0:
+        return "Quantity must be greater than 0"
+
+    if invoice.price <= 0:
+        return "Price must be greater than 0"
+
+    if invoice.gst < 0:
+        return "GST cannot be negative"
+
+    return None
+
+
 @app.post("/invoice/preview")
 def preview_invoice(invoice: InvoiceData):
 
-    # Validation
-    if not invoice.customer.strip():
-        return {"error": "Customer name is required"}
+    error = validate_invoice(invoice)
 
-    if not invoice.product.strip():
-        return {"error": "Product name is required"}
+    if error:
+        return {"error": error}
 
-    if invoice.quantity <= 0:
-        return {"error": "Quantity must be greater than 0"}
-
-    if invoice.price <= 0:
-        return {"error": "Price must be greater than 0"}
-
-    if invoice.gst < 0:
-        return {"error": "GST cannot be negative"}
-
-    # Invoice calculation
     subtotal = invoice.quantity * invoice.price
     gst_amount = subtotal * (invoice.gst / 100)
     total = subtotal + gst_amount
 
-    # Send result back to frontend
     return {
         "customer": invoice.customer,
         "product": invoice.product,
@@ -65,4 +69,32 @@ def preview_invoice(invoice: InvoiceData):
         "gst_amount": gst_amount,
         "total": total,
         "status": "ready_for_confirmation"
+    }
+
+
+@app.post("/invoice/create")
+def create_invoice(invoice: InvoiceData):
+
+    error = validate_invoice(invoice)
+
+    if error:
+        return {"error": error}
+
+    subtotal = invoice.quantity * invoice.price
+    gst_amount = subtotal * (invoice.gst / 100)
+    total = subtotal + gst_amount
+
+    invoice_id = "INV-" + str(uuid.uuid4())[:8].upper()
+
+    return {
+        "invoice_id": invoice_id,
+        "customer": invoice.customer,
+        "product": invoice.product,
+        "quantity": invoice.quantity,
+        "price": invoice.price,
+        "gst": invoice.gst,
+        "total": total,
+        "created_at": datetime.now().isoformat(),
+        "payment_status": "pending",
+        "status": "invoice_created"
     }
