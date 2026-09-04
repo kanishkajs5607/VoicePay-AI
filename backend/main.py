@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from datetime import datetime
 import uuid
 import re
+import sqlite3
 
 
 app = FastAPI(title="VoicePay AI Backend")
@@ -16,6 +17,45 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# --------------------------------------------------
+# DATABASE
+# --------------------------------------------------
+
+DATABASE = "voicepay.db"
+
+
+def get_db_connection():
+    connection = sqlite3.connect(DATABASE)
+    connection.row_factory = sqlite3.Row
+    return connection
+
+
+def create_tables():
+    connection = get_db_connection()
+
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS invoices (
+            invoice_id TEXT PRIMARY KEY,
+            customer TEXT NOT NULL,
+            product TEXT NOT NULL,
+            quantity INTEGER NOT NULL,
+            price REAL NOT NULL,
+            gst REAL NOT NULL,
+            total REAL NOT NULL,
+            created_at TEXT NOT NULL,
+            payment_status TEXT NOT NULL
+        )
+        """
+    )
+
+    connection.commit()
+    connection.close()
+
+
+create_tables()
 
 
 # --------------------------------------------------
@@ -105,7 +145,7 @@ def preview_invoice(invoice: InvoiceData):
 
 
 # --------------------------------------------------
-# CREATE INVOICE
+# CREATE AND SAVE INVOICE
 # --------------------------------------------------
 
 @app.post("/invoice/create")
@@ -121,6 +161,40 @@ def create_invoice(invoice: InvoiceData):
     total = subtotal + gst_amount
 
     invoice_id = "INV-" + str(uuid.uuid4())[:8].upper()
+    created_at = datetime.now().isoformat()
+
+    connection = get_db_connection()
+
+    connection.execute(
+        """
+        INSERT INTO invoices (
+            invoice_id,
+            customer,
+            product,
+            quantity,
+            price,
+            gst,
+            total,
+            created_at,
+            payment_status
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            invoice_id,
+            invoice.customer,
+            invoice.product,
+            invoice.quantity,
+            invoice.price,
+            invoice.gst,
+            total,
+            created_at,
+            "pending"
+        )
+    )
+
+    connection.commit()
+    connection.close()
 
     return {
         "invoice_id": invoice_id,
@@ -130,9 +204,36 @@ def create_invoice(invoice: InvoiceData):
         "price": invoice.price,
         "gst": invoice.gst,
         "total": total,
-        "created_at": datetime.now().isoformat(),
+        "created_at": created_at,
         "payment_status": "pending",
         "status": "invoice_created"
+    }
+
+
+# --------------------------------------------------
+# GET ALL INVOICES
+# --------------------------------------------------
+
+@app.get("/invoices")
+def get_invoices():
+
+    connection = get_db_connection()
+
+    invoices = connection.execute(
+        """
+        SELECT *
+        FROM invoices
+        ORDER BY created_at DESC
+        """
+    ).fetchall()
+
+    connection.close()
+
+    return {
+        "invoices": [
+            dict(invoice)
+            for invoice in invoices
+        ]
     }
 
 
@@ -152,7 +253,6 @@ def parse_voice_command(command: VoiceCommand):
 
     text = original_text.lower()
 
-    # Normalize common speech-recognition variations
     text = (
         text
         .replace(",", " ")
@@ -168,7 +268,6 @@ def parse_voice_command(command: VoiceCommand):
 
     text = re.sub(r"\s+", " ", text).strip()
 
-    # Remove beginning instruction
     text = re.sub(
         r"^(please\s+)?(create\s+)?(?:an?\s+)?invoice\s+for\s+",
         "",
@@ -176,7 +275,6 @@ def parse_voice_command(command: VoiceCommand):
         flags=re.IGNORECASE
     )
 
-    # Customer name
     customer_match = re.match(
         r"([a-z]+)",
         text,
@@ -193,7 +291,6 @@ def parse_voice_command(command: VoiceCommand):
 
     remaining = text[customer_match.end():].strip()
 
-    # Quantity + product
     item_match = re.search(
         r"(\d+)\s+([a-z]+)",
         remaining,
@@ -211,7 +308,6 @@ def parse_voice_command(command: VoiceCommand):
 
     remaining_after_item = remaining[item_match.end():].strip()
 
-    # Find GST value
     gst_match = re.search(
         r"gst\s*(?:of\s*)?(\d+(?:\.\d+)?)",
         remaining_after_item,
@@ -220,10 +316,9 @@ def parse_voice_command(command: VoiceCommand):
 
     if gst_match:
         gst = float(gst_match.group(1))
-
         price_section = remaining_after_item[:gst_match.start()]
+
     else:
-        # Also support formats like "12 GST"
         gst_reverse_match = re.search(
             r"(\d+(?:\.\d+)?)\s*gst",
             remaining_after_item,
@@ -237,10 +332,10 @@ def parse_voice_command(command: VoiceCommand):
             }
 
         gst = float(gst_reverse_match.group(1))
+        price_section = remaining_after_item[
+            :gst_reverse_match.start()
+        ]
 
-        price_section = remaining_after_item[:gst_reverse_match.start()]
-
-    # Remove common price words
     price_section = re.sub(
         r"\b(at|for|each|price|cost|costing)\b",
         " ",
@@ -281,14 +376,10 @@ def parse_voice_command(command: VoiceCommand):
 def create_payment_link(request: PaymentLinkRequest):
 
     if not request.invoice_id.strip():
-        return {
-            "error": "Invoice ID is required"
-        }
+        return {"error": "Invoice ID is required"}
 
     if not request.customer.strip():
-        return {
-            "error": "Customer name is required"
-        }
+        return {"error": "Customer name is required"}
 
     if request.amount <= 0:
         return {
