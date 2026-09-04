@@ -9,7 +9,6 @@ import sqlite3
 
 app = FastAPI(title="VoicePay AI Backend")
 
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -106,7 +105,7 @@ create_tables()
 
 
 # --------------------------------------------------
-# DATA MODELS
+# MODELS
 # --------------------------------------------------
 
 class InvoiceData(BaseModel):
@@ -553,6 +552,177 @@ def create_reminder(request: ReminderRequest):
 
 
 # --------------------------------------------------
+# TAMIL HELPERS
+# --------------------------------------------------
+
+TAMIL_NUMBER_WORDS = {
+    "ஒரு": 1,
+    "ஒன்று": 1,
+    "ஒன்னு": 1,
+    "ரெண்டு": 2,
+    "இரண்டு": 2,
+    "மூன்று": 3,
+    "மூணு": 3,
+    "நான்கு": 4,
+    "நாலு": 4,
+    "ஐந்து": 5,
+    "அஞ்சு": 5,
+    "ஆறு": 6,
+    "ஏழு": 7,
+    "எட்டு": 8,
+    "ஒன்பது": 9,
+    "பத்து": 10
+}
+
+
+def contains_tamil(text):
+    return bool(re.search(r"[\u0B80-\u0BFF]", text))
+
+
+def tamil_number_to_int(value):
+
+    value = value.strip()
+
+    if value.isdigit():
+        return int(value)
+
+    return TAMIL_NUMBER_WORDS.get(value)
+
+
+def clean_tamil_customer(value):
+
+    value = value.strip(" .,-")
+
+    suffixes = [
+        "க்கு",
+        "ற்கு",
+        "இற்கு"
+    ]
+
+    for suffix in suffixes:
+        if value.endswith(suffix):
+            value = value[:-len(suffix)]
+            break
+
+    return value.strip()
+
+
+def parse_tamil_invoice(original_text):
+
+    text = original_text.strip()
+
+    text = (
+        text
+        .replace(",", " ")
+        .replace(".", " ")
+        .replace("₹", " ₹")
+        .replace("%", " %")
+    )
+
+    text = re.sub(r"\s+", " ", text).strip()
+
+    gst_match = re.search(
+        r"(?:ஜிஎஸ்டி|GST)\s*\.?\s*(\d+(?:\.\d+)?)\s*%?",
+        text,
+        re.IGNORECASE
+    )
+
+    if not gst_match:
+        gst_match = re.search(
+            r"(\d+(?:\.\d+)?)\s*%?\s*(?:ஜிஎஸ்டி|GST)",
+            text,
+            re.IGNORECASE
+        )
+
+    if not gst_match:
+        return {
+            "error": "Could not identify GST from Tamil command",
+            "heard": original_text
+        }
+
+    gst = float(gst_match.group(1))
+
+    before_gst = text[:gst_match.start()].strip()
+
+    price_match = re.search(
+        r"₹?\s*(\d+(?:\.\d+)?)\s*(?:ரூபாய்|ரூ|rs|rupees?)?\s*$",
+        before_gst,
+        re.IGNORECASE
+    )
+
+    if not price_match:
+        return {
+            "error": "Could not identify price from Tamil command",
+            "heard": original_text
+        }
+
+    price = float(price_match.group(1))
+
+    before_price = before_gst[:price_match.start()].strip()
+
+    quantity_pattern = (
+        r"(ஒரு|ஒன்று|ஒன்னு|ரெண்டு|இரண்டு|மூன்று|மூணு|"
+        r"நான்கு|நாலு|ஐந்து|அஞ்சு|ஆறு|ஏழு|எட்டு|"
+        r"ஒன்பது|பத்து|\d+)"
+    )
+
+    item_match = re.search(
+        quantity_pattern + r"\s+([^\s]+)",
+        before_price
+    )
+
+    if not item_match:
+        return {
+            "error": "Could not identify quantity and product from Tamil command",
+            "heard": original_text
+        }
+
+    quantity_text = item_match.group(1)
+    quantity = tamil_number_to_int(quantity_text)
+
+    if quantity is None:
+        return {
+            "error": "Could not understand Tamil quantity",
+            "heard": original_text
+        }
+
+    product = item_match.group(2).strip(" .,-")
+
+    customer_section = before_price[:item_match.start()].strip()
+
+    customer_section = re.sub(
+        r"^(?:இன்வாய்ஸ்|பில்)\s+",
+        "",
+        customer_section
+    )
+
+    customer = clean_tamil_customer(customer_section)
+
+    if not customer:
+        return {
+            "error": "Could not identify customer from Tamil command",
+            "heard": original_text
+        }
+
+    add_audit_log(
+        "voice_command_parsed",
+        f'Tamil voice command: "{original_text}"'
+    )
+
+    return {
+        "intent": "create_invoice",
+        "language": "ta",
+        "customer": customer,
+        "product": product,
+        "quantity": quantity,
+        "price": price,
+        "gst": gst,
+        "heard": original_text,
+        "status": "parsed"
+    }
+
+
+# --------------------------------------------------
 # VOICE PARSER
 # --------------------------------------------------
 
@@ -563,6 +733,9 @@ def parse_voice_command(command: VoiceCommand):
 
     if not original_text:
         return {"error": "Voice command is empty"}
+
+    if contains_tamil(original_text):
+        return parse_tamil_invoice(original_text)
 
     text = original_text.lower()
 
@@ -645,6 +818,7 @@ def parse_voice_command(command: VoiceCommand):
             }
 
         gst = float(gst_reverse_match.group(1))
+
         price_section = remaining_after_item[
             :gst_reverse_match.start()
         ]
@@ -676,6 +850,7 @@ def parse_voice_command(command: VoiceCommand):
 
     return {
         "intent": "create_invoice",
+        "language": "en",
         "customer": customer,
         "product": product,
         "quantity": quantity,
@@ -687,7 +862,7 @@ def parse_voice_command(command: VoiceCommand):
 
 
 # --------------------------------------------------
-# CREATE PAYMENT LINK
+# PAYMENT LINK
 # --------------------------------------------------
 
 @app.post("/payment-link/create")
@@ -770,10 +945,6 @@ def create_payment_link(request: PaymentLinkRequest):
     }
 
 
-# --------------------------------------------------
-# GET PAYMENT LINK
-# --------------------------------------------------
-
 @app.get("/payment-link/{payment_link_id}")
 def get_payment_link(payment_link_id: str):
 
@@ -795,10 +966,6 @@ def get_payment_link(payment_link_id: str):
 
     return dict(payment)
 
-
-# --------------------------------------------------
-# COMPLETE MOCK PAYMENT
-# --------------------------------------------------
 
 @app.post("/payment-link/{payment_link_id}/pay")
 def complete_mock_payment(payment_link_id: str):
