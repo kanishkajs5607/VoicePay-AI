@@ -359,14 +359,28 @@ def dashboard_summary():
 @app.post("/business/query")
 def business_query(query: BusinessQuery):
 
-    text = query.text.strip().lower()
+    original_text = query.text.strip()
 
-    if not text:
+    if not original_text:
         return {"error": "Query cannot be empty"}
+
+    text = original_text.lower()
+
+    text = (
+        text
+        .replace("?", "")
+        .replace(".", "")
+        .replace(",", "")
+        .strip()
+    )
+
+    is_tamil = bool(
+        re.search(r"[\u0B80-\u0BFF]", original_text)
+    )
 
     connection = get_db_connection()
 
-    pending_phrases = [
+    english_pending_phrases = [
         "who hasn't paid",
         "who has not paid",
         "who havent paid",
@@ -377,7 +391,28 @@ def business_query(query: BusinessQuery):
         "who owes me"
     ]
 
-    if any(phrase in text for phrase in pending_phrases):
+    tamil_pending_phrases = [
+        "யார் இன்னும் பணம் கொடுக்கவில்லை",
+        "யார் பணம் கொடுக்கவில்லை",
+        "யார் இன்னும் பணம் தரவில்லை",
+        "யார் பணம் தரவில்லை",
+        "யார் இன்னும் கட்டவில்லை",
+        "யார் பணம் செலுத்தவில்லை"
+    ]
+
+    pending_query = (
+        any(
+            phrase in text
+            for phrase in english_pending_phrases
+        )
+        or
+        any(
+            phrase in text
+            for phrase in tamil_pending_phrases
+        )
+    )
+
+    if pending_query:
 
         invoices = connection.execute(
             """
@@ -395,7 +430,10 @@ def business_query(query: BusinessQuery):
 
         connection.close()
 
-        pending_list = [dict(invoice) for invoice in invoices]
+        pending_list = [
+            dict(invoice)
+            for invoice in invoices
+        ]
 
         total_pending = sum(
             invoice["total"]
@@ -403,18 +441,31 @@ def business_query(query: BusinessQuery):
         )
 
         if not pending_list:
-            answer = "You have no pending invoices."
+
+            if is_tamil:
+                answer = "நிலுவையில் எந்த இன்வாய்ஸும் இல்லை."
+            else:
+                answer = "You have no pending invoices."
+
         else:
+
             customers = ", ".join(
                 invoice["customer"]
                 for invoice in pending_list
             )
 
-            answer = (
-                f"{len(pending_list)} invoice(s) are pending "
-                f"from {customers}. "
-                f"Total pending amount is ₹{total_pending:.2f}."
-            )
+            if is_tamil:
+                answer = (
+                    f"{len(pending_list)} இன்வாய்ஸ் நிலுவையில் உள்ளது. "
+                    f"வாடிக்கையாளர்கள்: {customers}. "
+                    f"மொத்த நிலுவை தொகை ₹{total_pending:.2f}."
+                )
+            else:
+                answer = (
+                    f"{len(pending_list)} invoice(s) are pending "
+                    f"from {customers}. "
+                    f"Total pending amount is ₹{total_pending:.2f}."
+                )
 
         add_audit_log(
             "business_query",
@@ -423,6 +474,7 @@ def business_query(query: BusinessQuery):
 
         return {
             "intent": "pending_invoices",
+            "language": "ta" if is_tamil else "en",
             "answer": answer,
             "invoices": pending_list
         }
@@ -437,7 +489,10 @@ def business_query(query: BusinessQuery):
         "what did i collect"
     ]
 
-    if any(phrase in text for phrase in collection_phrases):
+    if any(
+        phrase in text
+        for phrase in collection_phrases
+    ):
 
         result = connection.execute(
             """
@@ -461,6 +516,7 @@ def business_query(query: BusinessQuery):
 
         return {
             "intent": "total_collected",
+            "language": "en",
             "answer": (
                 f"You have collected ₹{collected:.2f} "
                 f"from {paid_count} paid invoice(s)."
@@ -470,6 +526,14 @@ def business_query(query: BusinessQuery):
         }
 
     connection.close()
+
+    if is_tamil:
+        return {
+            "error": "இந்த கேள்வியை இன்னும் புரிந்துகொள்ள முடியவில்லை.",
+            "examples": [
+                "யார் இன்னும் பணம் கொடுக்கவில்லை?"
+            ]
+        }
 
     return {
         "error": "I don't understand that business query yet.",
@@ -525,7 +589,9 @@ def create_reminder(request: ReminderRequest):
             f"{payment_link['payment_link_id']}"
         )
     else:
-        payment_url = "Payment link has not been generated yet."
+        payment_url = (
+            "Payment link has not been generated yet."
+        )
 
     message = (
         f"Hi {invoice['customer']}, this is a friendly reminder "
@@ -576,7 +642,9 @@ TAMIL_NUMBER_WORDS = {
 
 
 def contains_tamil(text):
-    return bool(re.search(r"[\u0B80-\u0BFF]", text))
+    return bool(
+        re.search(r"[\u0B80-\u0BFF]", text)
+    )
 
 
 def tamil_number_to_int(value):
@@ -619,51 +687,73 @@ def parse_tamil_invoice(original_text):
         .replace("%", " %")
     )
 
-    text = re.sub(r"\s+", " ", text).strip()
+    text = re.sub(
+        r"\s+",
+        " ",
+        text
+    ).strip()
 
     gst_match = re.search(
-        r"(?:ஜிஎஸ்டி|GST)\s*\.?\s*(\d+(?:\.\d+)?)\s*%?",
+        r"(?:ஜிஎஸ்டி|GST)\s*\.?\s*"
+        r"(\d+(?:\.\d+)?)\s*%?",
         text,
         re.IGNORECASE
     )
 
     if not gst_match:
         gst_match = re.search(
-            r"(\d+(?:\.\d+)?)\s*%?\s*(?:ஜிஎஸ்டி|GST)",
+            r"(\d+(?:\.\d+)?)\s*%?\s*"
+            r"(?:ஜிஎஸ்டி|GST)",
             text,
             re.IGNORECASE
         )
 
     if not gst_match:
         return {
-            "error": "Could not identify GST from Tamil command",
+            "error": (
+                "Could not identify GST "
+                "from Tamil command"
+            ),
             "heard": original_text
         }
 
-    gst = float(gst_match.group(1))
+    gst = float(
+        gst_match.group(1)
+    )
 
-    before_gst = text[:gst_match.start()].strip()
+    before_gst = text[
+        :gst_match.start()
+    ].strip()
 
     price_match = re.search(
-        r"₹?\s*(\d+(?:\.\d+)?)\s*(?:ரூபாய்|ரூ|rs|rupees?)?\s*$",
+        r"₹?\s*(\d+(?:\.\d+)?)\s*"
+        r"(?:ரூபாய்|ரூ|rs|rupees?)?\s*$",
         before_gst,
         re.IGNORECASE
     )
 
     if not price_match:
         return {
-            "error": "Could not identify price from Tamil command",
+            "error": (
+                "Could not identify price "
+                "from Tamil command"
+            ),
             "heard": original_text
         }
 
-    price = float(price_match.group(1))
+    price = float(
+        price_match.group(1)
+    )
 
-    before_price = before_gst[:price_match.start()].strip()
+    before_price = before_gst[
+        :price_match.start()
+    ].strip()
 
     quantity_pattern = (
-        r"(ஒரு|ஒன்று|ஒன்னு|ரெண்டு|இரண்டு|மூன்று|மூணு|"
-        r"நான்கு|நாலு|ஐந்து|அஞ்சு|ஆறு|ஏழு|எட்டு|"
-        r"ஒன்பது|பத்து|\d+)"
+        r"(ஒரு|ஒன்று|ஒன்னு|ரெண்டு|இரண்டு|"
+        r"மூன்று|மூணு|நான்கு|நாலு|ஐந்து|"
+        r"அஞ்சு|ஆறு|ஏழு|எட்டு|ஒன்பது|"
+        r"பத்து|\d+)"
     )
 
     item_match = re.search(
@@ -673,22 +763,35 @@ def parse_tamil_invoice(original_text):
 
     if not item_match:
         return {
-            "error": "Could not identify quantity and product from Tamil command",
+            "error": (
+                "Could not identify quantity and "
+                "product from Tamil command"
+            ),
             "heard": original_text
         }
 
     quantity_text = item_match.group(1)
-    quantity = tamil_number_to_int(quantity_text)
+
+    quantity = tamil_number_to_int(
+        quantity_text
+    )
 
     if quantity is None:
         return {
-            "error": "Could not understand Tamil quantity",
+            "error": (
+                "Could not understand "
+                "Tamil quantity"
+            ),
             "heard": original_text
         }
 
-    product = item_match.group(2).strip(" .,-")
+    product = item_match.group(2).strip(
+        " .,-"
+    )
 
-    customer_section = before_price[:item_match.start()].strip()
+    customer_section = before_price[
+        :item_match.start()
+    ].strip()
 
     customer_section = re.sub(
         r"^(?:இன்வாய்ஸ்|பில்)\s+",
@@ -696,11 +799,16 @@ def parse_tamil_invoice(original_text):
         customer_section
     )
 
-    customer = clean_tamil_customer(customer_section)
+    customer = clean_tamil_customer(
+        customer_section
+    )
 
     if not customer:
         return {
-            "error": "Could not identify customer from Tamil command",
+            "error": (
+                "Could not identify customer "
+                "from Tamil command"
+            ),
             "heard": original_text
         }
 
@@ -732,10 +840,14 @@ def parse_voice_command(command: VoiceCommand):
     original_text = command.text.strip()
 
     if not original_text:
-        return {"error": "Voice command is empty"}
+        return {
+            "error": "Voice command is empty"
+        }
 
     if contains_tamil(original_text):
-        return parse_tamil_invoice(original_text)
+        return parse_tamil_invoice(
+            original_text
+        )
 
     text = original_text.lower()
 
@@ -752,10 +864,15 @@ def parse_voice_command(command: VoiceCommand):
         .replace("percent", " ")
     )
 
-    text = re.sub(r"\s+", " ", text).strip()
+    text = re.sub(
+        r"\s+",
+        " ",
+        text
+    ).strip()
 
     text = re.sub(
-        r"^(please\s+)?(create\s+)?(?:an?\s+)?invoice\s+for\s+",
+        r"^(please\s+)?(create\s+)?"
+        r"(?:an?\s+)?invoice\s+for\s+",
         "",
         text,
         flags=re.IGNORECASE
@@ -769,13 +886,20 @@ def parse_voice_command(command: VoiceCommand):
 
     if not customer_match:
         return {
-            "error": "Could not identify customer name",
+            "error": (
+                "Could not identify "
+                "customer name"
+            ),
             "heard": original_text
         }
 
-    customer = customer_match.group(1).title()
+    customer = customer_match.group(
+        1
+    ).title()
 
-    remaining = text[customer_match.end():].strip()
+    remaining = text[
+        customer_match.end():
+    ].strip()
 
     item_match = re.search(
         r"(\d+)\s+([a-z]+)",
@@ -785,24 +909,40 @@ def parse_voice_command(command: VoiceCommand):
 
     if not item_match:
         return {
-            "error": "Could not identify quantity and product",
+            "error": (
+                "Could not identify "
+                "quantity and product"
+            ),
             "heard": original_text
         }
 
-    quantity = int(item_match.group(1))
+    quantity = int(
+        item_match.group(1)
+    )
+
     product = item_match.group(2)
 
-    remaining_after_item = remaining[item_match.end():].strip()
+    remaining_after_item = remaining[
+        item_match.end():
+    ].strip()
 
     gst_match = re.search(
-        r"gst\s*(?:of\s*)?(\d+(?:\.\d+)?)",
+        r"gst\s*(?:of\s*)?"
+        r"(\d+(?:\.\d+)?)",
         remaining_after_item,
         re.IGNORECASE
     )
 
     if gst_match:
-        gst = float(gst_match.group(1))
-        price_section = remaining_after_item[:gst_match.start()]
+        gst = float(
+            gst_match.group(1)
+        )
+
+        price_section = (
+            remaining_after_item[
+                :gst_match.start()
+            ]
+        )
 
     else:
         gst_reverse_match = re.search(
@@ -813,15 +953,21 @@ def parse_voice_command(command: VoiceCommand):
 
         if not gst_reverse_match:
             return {
-                "error": "Could not identify GST",
+                "error": (
+                    "Could not identify GST"
+                ),
                 "heard": original_text
             }
 
-        gst = float(gst_reverse_match.group(1))
+        gst = float(
+            gst_reverse_match.group(1)
+        )
 
-        price_section = remaining_after_item[
-            :gst_reverse_match.start()
-        ]
+        price_section = (
+            remaining_after_item[
+                :gst_reverse_match.start()
+            ]
+        )
 
     price_section = re.sub(
         r"\b(at|for|each|price|cost|costing)\b",
@@ -837,11 +983,16 @@ def parse_voice_command(command: VoiceCommand):
 
     if not price_numbers:
         return {
-            "error": "Could not identify product price",
+            "error": (
+                "Could not identify "
+                "product price"
+            ),
             "heard": original_text
         }
 
-    price = float(price_numbers[-1])
+    price = float(
+        price_numbers[-1]
+    )
 
     add_audit_log(
         "voice_command_parsed",
@@ -866,16 +1017,27 @@ def parse_voice_command(command: VoiceCommand):
 # --------------------------------------------------
 
 @app.post("/payment-link/create")
-def create_payment_link(request: PaymentLinkRequest):
+def create_payment_link(
+    request: PaymentLinkRequest
+):
 
     if not request.invoice_id.strip():
-        return {"error": "Invoice ID is required"}
+        return {
+            "error": "Invoice ID is required"
+        }
 
     if not request.customer.strip():
-        return {"error": "Customer name is required"}
+        return {
+            "error": "Customer name is required"
+        }
 
     if request.amount <= 0:
-        return {"error": "Payment amount must be greater than 0"}
+        return {
+            "error": (
+                "Payment amount must "
+                "be greater than 0"
+            )
+        }
 
     connection = get_db_connection()
 
@@ -890,10 +1052,19 @@ def create_payment_link(request: PaymentLinkRequest):
 
     if not invoice:
         connection.close()
-        return {"error": "Invoice not found"}
 
-    payment_link_id = "plink_" + str(uuid.uuid4())[:10]
-    created_at = datetime.now().isoformat()
+        return {
+            "error": "Invoice not found"
+        }
+
+    payment_link_id = (
+        "plink_"
+        + str(uuid.uuid4())[:10]
+    )
+
+    created_at = (
+        datetime.now().isoformat()
+    )
 
     connection.execute(
         """
@@ -921,7 +1092,8 @@ def create_payment_link(request: PaymentLinkRequest):
     connection.close()
 
     mock_payment_url = (
-        f"http://localhost:5173/pay/{payment_link_id}"
+        f"http://localhost:5173/pay/"
+        f"{payment_link_id}"
     )
 
     add_audit_log(
@@ -945,8 +1117,14 @@ def create_payment_link(request: PaymentLinkRequest):
     }
 
 
+# --------------------------------------------------
+# GET PAYMENT LINK
+# --------------------------------------------------
+
 @app.get("/payment-link/{payment_link_id}")
-def get_payment_link(payment_link_id: str):
+def get_payment_link(
+    payment_link_id: str
+):
 
     connection = get_db_connection()
 
@@ -962,13 +1140,23 @@ def get_payment_link(payment_link_id: str):
     connection.close()
 
     if not payment:
-        return {"error": "Payment link not found"}
+        return {
+            "error": "Payment link not found"
+        }
 
     return dict(payment)
 
 
-@app.post("/payment-link/{payment_link_id}/pay")
-def complete_mock_payment(payment_link_id: str):
+# --------------------------------------------------
+# COMPLETE MOCK PAYMENT
+# --------------------------------------------------
+
+@app.post(
+    "/payment-link/{payment_link_id}/pay"
+)
+def complete_mock_payment(
+    payment_link_id: str
+):
 
     connection = get_db_connection()
 
@@ -983,7 +1171,10 @@ def complete_mock_payment(payment_link_id: str):
 
     if not payment:
         connection.close()
-        return {"error": "Payment link not found"}
+
+        return {
+            "error": "Payment link not found"
+        }
 
     connection.execute(
         """
@@ -1045,5 +1236,8 @@ def get_audit_history():
     connection.close()
 
     return {
-        "audit_logs": [dict(log) for log in logs]
+        "audit_logs": [
+            dict(log)
+            for log in logs
+        ]
     }
