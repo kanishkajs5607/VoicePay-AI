@@ -6,14 +6,25 @@ function App() {
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
   const [gst, setGst] = useState("");
-  const [confirmed, setConfirmed] = useState(false);
+  const [result, setResult] = useState(null);
 
-  const subtotal = Number(quantity || 0) * Number(price || 0);
-  const gstAmount = subtotal * (Number(gst || 0) / 100);
-  const total = subtotal + gstAmount;
+  const handleConfirm = async () => {
+    const response = await fetch("http://127.0.0.1:8000/invoice/preview", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        customer,
+        product,
+        quantity: Number(quantity),
+        price: Number(price),
+        gst: Number(gst),
+      }),
+    });
 
-  const handleConfirm = () => {
-    setConfirmed(true);
+    const data = await response.json();
+    setResult(data);
   };
 
   return (
@@ -65,21 +76,20 @@ function App() {
       />
       <br /><br />
 
-      <h3>Invoice Preview</h3>
-      <p>Customer: {customer || "-"}</p>
-      <p>Product: {product || "-"}</p>
-      <p>Subtotal: ₹{subtotal.toFixed(2)}</p>
-      <p>GST: ₹{gstAmount.toFixed(2)}</p>
-      <p><strong>Total: ₹{total.toFixed(2)}</strong></p>
-
       <button onClick={handleConfirm}>
         Confirm Invoice
       </button>
 
-      {confirmed && (
-        <p>
-          ✅ Invoice confirmed. Ready to send to Razorpay.
-        </p>
+      {result && (
+        <div>
+          <h3>Invoice Preview</h3>
+          <p>Customer: {result.customer}</p>
+          <p>Product: {result.product}</p>
+          <p>Subtotal: ₹{result.subtotal}</p>
+          <p>GST: ₹{result.gst_amount}</p>
+          <p><strong>Total: ₹{result.total}</strong></p>
+          <p>✅ Backend status: {result.status}</p>
+        </div>
       )}
     </div>
   );
