@@ -22,6 +22,10 @@ app.add_middleware(
 DATABASE = "voicepay.db"
 
 
+# --------------------------------------------------
+# DATABASE
+# --------------------------------------------------
+
 def get_db_connection():
     connection = sqlite3.connect(DATABASE)
     connection.row_factory = sqlite3.Row
@@ -60,12 +64,50 @@ def create_tables():
         """
     )
 
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            action TEXT NOT NULL,
+            details TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+
+    connection.commit()
+    connection.close()
+
+
+def add_audit_log(action, details):
+    connection = get_db_connection()
+
+    connection.execute(
+        """
+        INSERT INTO audit_logs (
+            action,
+            details,
+            created_at
+        )
+        VALUES (?, ?, ?)
+        """,
+        (
+            action,
+            details,
+            datetime.now().isoformat()
+        )
+    )
+
     connection.commit()
     connection.close()
 
 
 create_tables()
 
+
+# --------------------------------------------------
+# DATA MODELS
+# --------------------------------------------------
 
 class InvoiceData(BaseModel):
     customer: str
@@ -93,12 +135,20 @@ class ReminderRequest(BaseModel):
     invoice_id: str
 
 
+# --------------------------------------------------
+# HOME
+# --------------------------------------------------
+
 @app.get("/")
 def home():
     return {
         "message": "VoicePay AI backend is running"
     }
 
+
+# --------------------------------------------------
+# VALIDATION
+# --------------------------------------------------
 
 def validate_invoice(invoice: InvoiceData):
 
@@ -119,6 +169,10 @@ def validate_invoice(invoice: InvoiceData):
 
     return None
 
+
+# --------------------------------------------------
+# INVOICE PREVIEW
+# --------------------------------------------------
 
 @app.post("/invoice/preview")
 def preview_invoice(invoice: InvoiceData):
@@ -144,6 +198,10 @@ def preview_invoice(invoice: InvoiceData):
         "status": "ready_for_confirmation"
     }
 
+
+# --------------------------------------------------
+# CREATE INVOICE
+# --------------------------------------------------
 
 @app.post("/invoice/create")
 def create_invoice(invoice: InvoiceData):
@@ -193,6 +251,14 @@ def create_invoice(invoice: InvoiceData):
     connection.commit()
     connection.close()
 
+    add_audit_log(
+        "invoice_created",
+        (
+            f"Invoice {invoice_id} created for "
+            f"{invoice.customer} for ₹{total:.2f}"
+        )
+    )
+
     return {
         "invoice_id": invoice_id,
         "customer": invoice.customer,
@@ -206,6 +272,10 @@ def create_invoice(invoice: InvoiceData):
         "status": "invoice_created"
     }
 
+
+# --------------------------------------------------
+# GET INVOICES
+# --------------------------------------------------
 
 @app.get("/invoices")
 def get_invoices():
@@ -226,6 +296,10 @@ def get_invoices():
         "invoices": [dict(invoice) for invoice in invoices]
     }
 
+
+# --------------------------------------------------
+# DASHBOARD
+# --------------------------------------------------
 
 @app.get("/dashboard/summary")
 def dashboard_summary():
@@ -279,15 +353,17 @@ def dashboard_summary():
     }
 
 
+# --------------------------------------------------
+# BUSINESS QUERY
+# --------------------------------------------------
+
 @app.post("/business/query")
 def business_query(query: BusinessQuery):
 
     text = query.text.strip().lower()
 
     if not text:
-        return {
-            "error": "Query cannot be empty"
-        }
+        return {"error": "Query cannot be empty"}
 
     connection = get_db_connection()
 
@@ -322,30 +398,33 @@ def business_query(query: BusinessQuery):
 
         pending_list = [dict(invoice) for invoice in invoices]
 
-        if not pending_list:
-            return {
-                "intent": "pending_invoices",
-                "answer": "You have no pending invoices.",
-                "invoices": []
-            }
-
         total_pending = sum(
             invoice["total"]
             for invoice in pending_list
         )
 
-        customers = ", ".join(
-            invoice["customer"]
-            for invoice in pending_list
+        if not pending_list:
+            answer = "You have no pending invoices."
+        else:
+            customers = ", ".join(
+                invoice["customer"]
+                for invoice in pending_list
+            )
+
+            answer = (
+                f"{len(pending_list)} invoice(s) are pending "
+                f"from {customers}. "
+                f"Total pending amount is ₹{total_pending:.2f}."
+            )
+
+        add_audit_log(
+            "business_query",
+            f'Asked: "{query.text}"'
         )
 
         return {
             "intent": "pending_invoices",
-            "answer": (
-                f"{len(pending_list)} invoice(s) are pending "
-                f"from {customers}. "
-                f"Total pending amount is ₹{total_pending:.2f}."
-            ),
+            "answer": answer,
             "invoices": pending_list
         }
 
@@ -376,6 +455,11 @@ def business_query(query: BusinessQuery):
         paid_count = result["paid_count"]
         collected = result["collected"]
 
+        add_audit_log(
+            "business_query",
+            f'Asked: "{query.text}"'
+        )
+
         return {
             "intent": "total_collected",
             "answer": (
@@ -397,6 +481,10 @@ def business_query(query: BusinessQuery):
     }
 
 
+# --------------------------------------------------
+# REMINDER
+# --------------------------------------------------
+
 @app.post("/reminder/create")
 def create_reminder(request: ReminderRequest):
 
@@ -413,17 +501,11 @@ def create_reminder(request: ReminderRequest):
 
     if not invoice:
         connection.close()
-
-        return {
-            "error": "Invoice not found"
-        }
+        return {"error": "Invoice not found"}
 
     if invoice["payment_status"] == "paid":
         connection.close()
-
-        return {
-            "error": "This invoice is already paid"
-        }
+        return {"error": "This invoice is already paid"}
 
     payment_link = connection.execute(
         """
@@ -453,6 +535,14 @@ def create_reminder(request: ReminderRequest):
         f"Payment link: {payment_url}"
     )
 
+    add_audit_log(
+        "reminder_created",
+        (
+            f"Reminder prepared for {invoice['customer']} "
+            f"for invoice {invoice['invoice_id']}"
+        )
+    )
+
     return {
         "invoice_id": invoice["invoice_id"],
         "customer": invoice["customer"],
@@ -462,15 +552,17 @@ def create_reminder(request: ReminderRequest):
     }
 
 
+# --------------------------------------------------
+# VOICE PARSER
+# --------------------------------------------------
+
 @app.post("/voice/parse")
 def parse_voice_command(command: VoiceCommand):
 
     original_text = command.text.strip()
 
     if not original_text:
-        return {
-            "error": "Voice command is empty"
-        }
+        return {"error": "Voice command is empty"}
 
     text = original_text.lower()
 
@@ -577,6 +669,11 @@ def parse_voice_command(command: VoiceCommand):
 
     price = float(price_numbers[-1])
 
+    add_audit_log(
+        "voice_command_parsed",
+        f'Voice command: "{original_text}"'
+    )
+
     return {
         "intent": "create_invoice",
         "customer": customer,
@@ -588,6 +685,10 @@ def parse_voice_command(command: VoiceCommand):
         "status": "parsed"
     }
 
+
+# --------------------------------------------------
+# CREATE PAYMENT LINK
+# --------------------------------------------------
 
 @app.post("/payment-link/create")
 def create_payment_link(request: PaymentLinkRequest):
@@ -648,6 +749,14 @@ def create_payment_link(request: PaymentLinkRequest):
         f"http://localhost:5173/pay/{payment_link_id}"
     )
 
+    add_audit_log(
+        "payment_link_created",
+        (
+            f"Payment link {payment_link_id} created "
+            f"for invoice {request.invoice_id}"
+        )
+    )
+
     return {
         "payment_link_id": payment_link_id,
         "invoice_id": request.invoice_id,
@@ -660,6 +769,10 @@ def create_payment_link(request: PaymentLinkRequest):
         "status": "payment_link_created"
     }
 
+
+# --------------------------------------------------
+# GET PAYMENT LINK
+# --------------------------------------------------
 
 @app.get("/payment-link/{payment_link_id}")
 def get_payment_link(payment_link_id: str):
@@ -682,6 +795,10 @@ def get_payment_link(payment_link_id: str):
 
     return dict(payment)
 
+
+# --------------------------------------------------
+# COMPLETE MOCK PAYMENT
+# --------------------------------------------------
 
 @app.post("/payment-link/{payment_link_id}/pay")
 def complete_mock_payment(payment_link_id: str):
@@ -722,6 +839,14 @@ def complete_mock_payment(payment_link_id: str):
     connection.commit()
     connection.close()
 
+    add_audit_log(
+        "payment_completed",
+        (
+            f"Payment of ₹{payment['amount']:.2f} completed "
+            f"for invoice {payment['invoice_id']}"
+        )
+    )
+
     return {
         "payment_link_id": payment_link_id,
         "invoice_id": payment["invoice_id"],
@@ -729,4 +854,29 @@ def complete_mock_payment(payment_link_id: str):
         "payment_status": "paid",
         "status": "payment_successful",
         "mock_mode": True
+    }
+
+
+# --------------------------------------------------
+# AUDIT HISTORY
+# --------------------------------------------------
+
+@app.get("/audit")
+def get_audit_history():
+
+    connection = get_db_connection()
+
+    logs = connection.execute(
+        """
+        SELECT *
+        FROM audit_logs
+        ORDER BY id DESC
+        LIMIT 100
+        """
+    ).fetchall()
+
+    connection.close()
+
+    return {
+        "audit_logs": [dict(log) for log in logs]
     }
