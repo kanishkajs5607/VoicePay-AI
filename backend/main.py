@@ -51,6 +51,19 @@ def create_tables():
         """
     )
 
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS payment_links (
+            payment_link_id TEXT PRIMARY KEY,
+            invoice_id TEXT NOT NULL,
+            customer TEXT NOT NULL,
+            amount REAL NOT NULL,
+            payment_status TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+
     connection.commit()
     connection.close()
 
@@ -125,7 +138,9 @@ def preview_invoice(invoice: InvoiceData):
     error = validate_invoice(invoice)
 
     if error:
-        return {"error": error}
+        return {
+            "error": error
+        }
 
     subtotal = invoice.quantity * invoice.price
     gst_amount = subtotal * (invoice.gst / 100)
@@ -154,7 +169,9 @@ def create_invoice(invoice: InvoiceData):
     error = validate_invoice(invoice)
 
     if error:
-        return {"error": error}
+        return {
+            "error": error
+        }
 
     subtotal = invoice.quantity * invoice.price
     gst_amount = subtotal * (invoice.gst / 100)
@@ -332,6 +349,7 @@ def parse_voice_command(command: VoiceCommand):
             }
 
         gst = float(gst_reverse_match.group(1))
+
         price_section = remaining_after_item[
             :gst_reverse_match.start()
         ]
@@ -369,26 +387,75 @@ def parse_voice_command(command: VoiceCommand):
 
 
 # --------------------------------------------------
-# MOCK RAZORPAY PAYMENT LINK
+# CREATE AND SAVE MOCK RAZORPAY PAYMENT LINK
 # --------------------------------------------------
 
 @app.post("/payment-link/create")
 def create_payment_link(request: PaymentLinkRequest):
 
     if not request.invoice_id.strip():
-        return {"error": "Invoice ID is required"}
+        return {
+            "error": "Invoice ID is required"
+        }
 
     if not request.customer.strip():
-        return {"error": "Customer name is required"}
+        return {
+            "error": "Customer name is required"
+        }
 
     if request.amount <= 0:
         return {
             "error": "Payment amount must be greater than 0"
         }
 
+    connection = get_db_connection()
+
+    invoice = connection.execute(
+        """
+        SELECT *
+        FROM invoices
+        WHERE invoice_id = ?
+        """,
+        (request.invoice_id,)
+    ).fetchone()
+
+    if not invoice:
+        connection.close()
+
+        return {
+            "error": "Invoice not found"
+        }
+
     payment_link_id = (
         "plink_" + str(uuid.uuid4())[:10]
     )
+
+    created_at = datetime.now().isoformat()
+
+    connection.execute(
+        """
+        INSERT INTO payment_links (
+            payment_link_id,
+            invoice_id,
+            customer,
+            amount,
+            payment_status,
+            created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            payment_link_id,
+            request.invoice_id,
+            request.customer,
+            request.amount,
+            "pending",
+            created_at
+        )
+    )
+
+    connection.commit()
+    connection.close()
 
     mock_payment_url = (
         f"http://localhost:5173/pay/{payment_link_id}"
@@ -404,4 +471,94 @@ def create_payment_link(request: PaymentLinkRequest):
         "provider": "razorpay_mock",
         "mock_mode": True,
         "status": "payment_link_created"
+    }
+
+
+# --------------------------------------------------
+# GET PAYMENT LINK
+# --------------------------------------------------
+
+@app.get("/payment-link/{payment_link_id}")
+def get_payment_link(payment_link_id: str):
+
+    connection = get_db_connection()
+
+    payment = connection.execute(
+        """
+        SELECT *
+        FROM payment_links
+        WHERE payment_link_id = ?
+        """,
+        (payment_link_id,)
+    ).fetchone()
+
+    connection.close()
+
+    if not payment:
+        return {
+            "error": "Payment link not found"
+        }
+
+    return dict(payment)
+
+
+# --------------------------------------------------
+# COMPLETE MOCK PAYMENT
+# --------------------------------------------------
+
+@app.post("/payment-link/{payment_link_id}/pay")
+def complete_mock_payment(payment_link_id: str):
+
+    connection = get_db_connection()
+
+    payment = connection.execute(
+        """
+        SELECT *
+        FROM payment_links
+        WHERE payment_link_id = ?
+        """,
+        (payment_link_id,)
+    ).fetchone()
+
+    if not payment:
+        connection.close()
+
+        return {
+            "error": "Payment link not found"
+        }
+
+    connection.execute(
+        """
+        UPDATE payment_links
+        SET payment_status = ?
+        WHERE payment_link_id = ?
+        """,
+        (
+            "paid",
+            payment_link_id
+        )
+    )
+
+    connection.execute(
+        """
+        UPDATE invoices
+        SET payment_status = ?
+        WHERE invoice_id = ?
+        """,
+        (
+            "paid",
+            payment["invoice_id"]
+        )
+    )
+
+    connection.commit()
+    connection.close()
+
+    return {
+        "payment_link_id": payment_link_id,
+        "invoice_id": payment["invoice_id"],
+        "amount": payment["amount"],
+        "payment_status": "paid",
+        "status": "payment_successful",
+        "mock_mode": True
     }
