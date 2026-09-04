@@ -380,6 +380,10 @@ def business_query(query: BusinessQuery):
 
     connection = get_db_connection()
 
+    # --------------------------------------------------
+    # PENDING PAYMENT QUERY
+    # --------------------------------------------------
+
     english_pending_phrases = [
         "who hasn't paid",
         "who has not paid",
@@ -479,7 +483,11 @@ def business_query(query: BusinessQuery):
             "invoices": pending_list
         }
 
-    collection_phrases = [
+    # --------------------------------------------------
+    # TOTAL COLLECTED QUERY
+    # --------------------------------------------------
+
+    english_collection_phrases = [
         "how much did i collect",
         "how much have i collected",
         "total collected",
@@ -489,10 +497,28 @@ def business_query(query: BusinessQuery):
         "what did i collect"
     ]
 
-    if any(
-        phrase in text
-        for phrase in collection_phrases
-    ):
+    tamil_collection_phrases = [
+        "நான் எவ்வளவு பணம் வசூல் செய்தேன்",
+        "எவ்வளவு பணம் வசூல் செய்தேன்",
+        "நான் எவ்வளவு வசூல் செய்தேன்",
+        "எவ்வளவு வசூல் செய்தேன்",
+        "மொத்தம் எவ்வளவு வசூல் செய்தேன்",
+        "மொத்த வசூல் எவ்வளவு"
+    ]
+
+    collection_query = (
+        any(
+            phrase in text
+            for phrase in english_collection_phrases
+        )
+        or
+        any(
+            phrase in text
+            for phrase in tamil_collection_phrases
+        )
+    )
+
+    if collection_query:
 
         result = connection.execute(
             """
@@ -509,6 +535,17 @@ def business_query(query: BusinessQuery):
         paid_count = result["paid_count"]
         collected = result["collected"]
 
+        if is_tamil:
+            answer = (
+                f"நீங்கள் ₹{collected:.2f} வசூல் செய்துள்ளீர்கள். "
+                f"{paid_count} இன்வாய்ஸ் செலுத்தப்பட்டுள்ளது."
+            )
+        else:
+            answer = (
+                f"You have collected ₹{collected:.2f} "
+                f"from {paid_count} paid invoice(s)."
+            )
+
         add_audit_log(
             "business_query",
             f'Asked: "{query.text}"'
@@ -516,14 +553,15 @@ def business_query(query: BusinessQuery):
 
         return {
             "intent": "total_collected",
-            "language": "en",
-            "answer": (
-                f"You have collected ₹{collected:.2f} "
-                f"from {paid_count} paid invoice(s)."
-            ),
+            "language": "ta" if is_tamil else "en",
+            "answer": answer,
             "total_collected": collected,
             "paid_invoices": paid_count
         }
+
+    # --------------------------------------------------
+    # UNKNOWN QUERY
+    # --------------------------------------------------
 
     connection.close()
 
@@ -531,7 +569,8 @@ def business_query(query: BusinessQuery):
         return {
             "error": "இந்த கேள்வியை இன்னும் புரிந்துகொள்ள முடியவில்லை.",
             "examples": [
-                "யார் இன்னும் பணம் கொடுக்கவில்லை?"
+                "யார் இன்னும் பணம் கொடுக்கவில்லை?",
+                "நான் எவ்வளவு பணம் வசூல் செய்தேன்?"
             ]
         }
 
@@ -542,7 +581,6 @@ def business_query(query: BusinessQuery):
             "How much did I collect?"
         ]
     }
-
 
 # --------------------------------------------------
 # REMINDER
