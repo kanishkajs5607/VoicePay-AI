@@ -17,6 +17,8 @@ function App() {
   const [paymentPageData, setPaymentPageData] = useState(null);
   const [paymentPageLoading, setPaymentPageLoading] = useState(false);
 
+  const [dashboard, setDashboard] = useState(null);
+
   const [error, setError] = useState("");
 
   const currentPath = window.location.pathname;
@@ -34,6 +36,26 @@ function App() {
     price: Number(price),
     gst: Number(gst),
   };
+
+  const loadDashboard = async () => {
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:8000/dashboard/summary"
+      );
+
+      const data = await response.json();
+
+      setDashboard(data);
+    } catch {
+      setError("Unable to load dashboard.");
+    }
+  };
+
+  useEffect(() => {
+    if (!isPaymentPage) {
+      loadDashboard();
+    }
+  }, [isPaymentPage]);
 
   useEffect(() => {
     if (!paymentLinkId) {
@@ -206,6 +228,8 @@ function App() {
       }
 
       setCreatedInvoice(data);
+
+      await loadDashboard();
     } catch {
       setError("Unable to create invoice.");
     }
@@ -356,6 +380,43 @@ function App() {
         Multilingual voice assistant for invoices and payments.
       </p>
 
+      <hr />
+
+      <h2>Business Dashboard</h2>
+
+      {dashboard ? (
+        <div>
+          <p>
+            Total Invoices:{" "}
+            <strong>{dashboard.total_invoices}</strong>
+          </p>
+
+          <p>
+            Paid Invoices:{" "}
+            <strong>{dashboard.paid_invoices}</strong>
+          </p>
+
+          <p>
+            Pending Invoices:{" "}
+            <strong>{dashboard.pending_invoices}</strong>
+          </p>
+
+          <p>
+            Total Collected:{" "}
+            <strong>₹{dashboard.total_collected}</strong>
+          </p>
+
+          <p>
+            Pending Amount:{" "}
+            <strong>₹{dashboard.pending_amount}</strong>
+          </p>
+        </div>
+      ) : (
+        <p>Loading dashboard...</p>
+      )}
+
+      <hr />
+
       <h2>AI Voice Command</h2>
 
       <button onClick={startListening}>
@@ -503,7 +564,9 @@ function App() {
             {paymentLink.payment_link_id}
           </p>
 
-          <p>Amount: ₹{paymentLink.amount}</p>
+          <p>
+            Amount: ₹{paymentLink.amount}
+          </p>
 
           <p>
             Status: {paymentLink.payment_status}
