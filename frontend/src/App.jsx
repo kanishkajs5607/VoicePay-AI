@@ -6,31 +6,52 @@ function App() {
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
   const [gst, setGst] = useState("");
+
   const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
 
   const handleConfirm = async () => {
-    const response = await fetch("http://127.0.0.1:8000/invoice/preview", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        customer,
-        product,
-        quantity: Number(quantity),
-        price: Number(price),
-        gst: Number(gst),
-      }),
-    });
+    setError("");
+    setResult(null);
 
-    const data = await response.json();
-    setResult(data);
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:8000/invoice/preview",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            customer,
+            product,
+            quantity: Number(quantity),
+            price: Number(price),
+            gst: Number(gst),
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.error) {
+        setError(data.error);
+        return;
+      }
+
+      setResult(data);
+    } catch (err) {
+      setError("Unable to connect to backend.");
+    }
   };
 
   return (
     <div>
       <h1>VoicePay AI</h1>
-      <p>Multilingual voice assistant for invoices and payments.</p>
+
+      <p>
+        Multilingual voice assistant for invoices and payments.
+      </p>
 
       <button>🎤 Start Voice Command</button>
 
@@ -42,6 +63,7 @@ function App() {
         value={customer}
         onChange={(e) => setCustomer(e.target.value)}
       />
+
       <br /><br />
 
       <input
@@ -50,6 +72,7 @@ function App() {
         value={product}
         onChange={(e) => setProduct(e.target.value)}
       />
+
       <br /><br />
 
       <input
@@ -58,6 +81,7 @@ function App() {
         value={quantity}
         onChange={(e) => setQuantity(e.target.value)}
       />
+
       <br /><br />
 
       <input
@@ -66,6 +90,7 @@ function App() {
         value={price}
         onChange={(e) => setPrice(e.target.value)}
       />
+
       <br /><br />
 
       <input
@@ -74,21 +99,37 @@ function App() {
         value={gst}
         onChange={(e) => setGst(e.target.value)}
       />
+
       <br /><br />
 
       <button onClick={handleConfirm}>
         Confirm Invoice
       </button>
 
+      {error && (
+        <p style={{ color: "red" }}>
+          ❌ {error}
+        </p>
+      )}
+
       {result && (
         <div>
           <h3>Invoice Preview</h3>
+
           <p>Customer: {result.customer}</p>
           <p>Product: {result.product}</p>
+          <p>Quantity: {result.quantity}</p>
+          <p>Price: ₹{result.price}</p>
           <p>Subtotal: ₹{result.subtotal}</p>
           <p>GST: ₹{result.gst_amount}</p>
-          <p><strong>Total: ₹{result.total}</strong></p>
-          <p>✅ Backend status: {result.status}</p>
+
+          <p>
+            <strong>Total: ₹{result.total}</strong>
+          </p>
+
+          <p>
+            ✅ Backend status: {result.status}
+          </p>
         </div>
       )}
     </div>
