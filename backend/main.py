@@ -684,15 +684,65 @@ def clean_tamil_customer(value):
 
     value = value.strip(" .,-")
 
+    # --------------------------------------------------
+    # Names ending with a vowel sound + "வுக்கு"
+    #
+    # கனிஷ்காவுக்கு -> கனிஷ்கா
+    # ராஜாவுக்கு -> ராஜா
+    # பிரியாவுக்கு -> பிரியா
+    # --------------------------------------------------
+
+    if value.endswith("வுக்கு"):
+
+        value = value[:-len("வுக்கு")]
+
+        return value.strip()
+
+    # --------------------------------------------------
+    # Names ending with a consonant + "ுக்கு"
+    #
+    # அருணுக்கு -> அருண்
+    # கணேஷுக்கு -> கணேஷ்
+    #
+    # Removing "ுக்கு" leaves:
+    # அருண
+    # கணேஷ
+    #
+    # So we restore the Tamil pulli "்".
+    # --------------------------------------------------
+
+    if value.endswith("ுக்கு"):
+
+        value = value[:-len("ுக்கு")].strip()
+
+        tamil_consonants = {
+            "க", "ங", "ச", "ஞ", "ட", "ண",
+            "த", "ந", "ப", "ம", "ய", "ர",
+            "ல", "வ", "ழ", "ள", "ற", "ன",
+            "ஜ", "ஷ", "ஸ", "ஹ"
+        }
+
+        if value and value[-1] in tamil_consonants:
+            value += "்"
+
+        return value.strip()
+
+    # --------------------------------------------------
+    # Other common Tamil grammatical suffixes
+    # --------------------------------------------------
+
     suffixes = [
-        "க்கு",
+        "இற்கு",
         "ற்கு",
-        "இற்கு"
+        "க்கு"
     ]
 
     for suffix in suffixes:
+
         if value.endswith(suffix):
+
             value = value[:-len(suffix)]
+
             break
 
     return value.strip()
@@ -778,7 +828,10 @@ def parse_tamil_invoice(original_text):
         }
 
     quantity_text = item_match.group(1)
-    quantity = tamil_number_to_int(quantity_text)
+
+    quantity = tamil_number_to_int(
+        quantity_text
+    )
 
     if quantity is None:
         return {
@@ -798,7 +851,9 @@ def parse_tamil_invoice(original_text):
         customer_section
     )
 
-    customer = clean_tamil_customer(customer_section)
+    customer = clean_tamil_customer(
+        customer_section
+    )
 
     if not customer:
         return {
@@ -876,10 +931,17 @@ def parse_voice_command(command: VoiceCommand):
     )
 
     if gst_match:
-        gst = float(gst_match.group(1))
-        before_gst = text[:gst_match.start()].strip()
+
+        gst = float(
+            gst_match.group(1)
+        )
+
+        before_gst = text[
+            :gst_match.start()
+        ].strip()
 
     else:
+
         gst_reverse_match = re.search(
             r"(\d+(?:\.\d+)?)\s*gst\b",
             text,
@@ -892,7 +954,9 @@ def parse_voice_command(command: VoiceCommand):
                 "heard": original_text
             }
 
-        gst = float(gst_reverse_match.group(1))
+        gst = float(
+            gst_reverse_match.group(1)
+        )
 
         before_gst = text[
             :gst_reverse_match.start()
@@ -906,12 +970,17 @@ def parse_voice_command(command: VoiceCommand):
     )
 
     if price_match:
-        price = float(price_match.group(1))
+
+        price = float(
+            price_match.group(1)
+        )
+
         before_price = before_gst[
             :price_match.start()
         ].strip()
 
     else:
+
         price_match = re.search(
             r"(\d+(?:\.\d+)?)\s*$",
             before_gst
@@ -923,7 +992,9 @@ def parse_voice_command(command: VoiceCommand):
                 "heard": original_text
             }
 
-        price = float(price_match.group(1))
+        price = float(
+            price_match.group(1)
+        )
 
         before_price = before_gst[
             :price_match.start()
@@ -940,7 +1011,9 @@ def parse_voice_command(command: VoiceCommand):
             "heard": original_text
         }
 
-    quantity = int(quantity_match.group(1))
+    quantity = int(
+        quantity_match.group(1)
+    )
 
     customer_text = before_price[
         :quantity_match.start()
@@ -977,6 +1050,7 @@ def parse_voice_command(command: VoiceCommand):
         }
 
     customer = customer_text.title()
+
     product = product_text
 
     add_audit_log(
@@ -1028,6 +1102,7 @@ def create_payment_link(request: PaymentLinkRequest):
         }
 
     customer = invoice["customer"]
+
     amount = invoice["total"]
 
     payment_link_id = (
@@ -1060,6 +1135,7 @@ def create_payment_link(request: PaymentLinkRequest):
     )
 
     connection.commit()
+
     connection.close()
 
     mock_payment_url = (
@@ -1161,6 +1237,7 @@ def complete_mock_payment(payment_link_id: str):
     )
 
     connection.commit()
+
     connection.close()
 
     add_audit_log(

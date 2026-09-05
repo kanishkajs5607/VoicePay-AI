@@ -1,7 +1,233 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./App.css";
 
 const API_URL = "http://127.0.0.1:8000";
+
+const TRANSLATIONS = {
+  en: {
+    dashboard: "Dashboard",
+    liveDemo: "LIVE DEMO",
+
+    welcomeTitle1: "Welcome to",
+    welcomeTitle2: "VoicePay.",
+    welcomeTagline: "From voice to invoice in one command.",
+    startVoicePay: "Start VoicePay",
+
+    voiceInvoice: "VOICE INVOICE",
+    generateHeading1: "Generate an invoice",
+    generateHeading2: "with your voice.",
+    generateDescription:
+      "Speak naturally or type the transaction. VoicePay will prepare the invoice for you.",
+
+    message: "MESSAGE",
+    whatSold: "What did you sell?",
+    english: "English",
+    tamil: "Tamil",
+
+    example:
+      "Example: Create invoice for Arun Kumar 2 water bottles at 50 rupees GST 18 percent",
+
+    speak: "Speak",
+    stop: "Stop",
+    generateInvoice: "Generate invoice",
+
+    step1: "Speak naturally",
+    step2: "Review details",
+    step3: "Send payment link",
+
+    invoicePreview: "INVOICE PREVIEW",
+    previewHeading1: "Your generated invoice",
+    previewHeading2: "appears here.",
+    previewDescription:
+      "Speak or type a transaction and VoicePay will place the generated invoice here.",
+
+    generatedInvoice: "GENERATED INVOICE",
+    ready: "Ready",
+
+    invoiceId: "INVOICE ID",
+
+    customer: "Customer",
+    productService: "Product / Service",
+    quantity: "Quantity",
+    price: "Price",
+    gst: "GST %",
+
+    editInvoice: "Edit / Update Invoice",
+
+    subtotal: "Subtotal",
+    total: "Total",
+
+    confirmCreate: "Confirm & create invoice",
+    generatePaymentLink: "Generate payment link",
+
+    paymentLinkReady: "PAYMENT LINK READY",
+    openPayment: "Open payment",
+
+    startAnotherInvoice: "Start another invoice",
+
+    merchantDashboard: "MERCHANT DASHBOARD",
+    overview: "Overview",
+    queries: "Queries",
+    history: "History",
+
+    totalCollected: "Total collected",
+    pendingAmount: "Pending amount",
+    paidInvoices: "Paid invoices",
+    pending: "Pending",
+
+    pendingPayments: "Pending payments",
+    pendingLabel: "pending",
+    noPendingPayments: "No pending payments",
+    remind: "Remind",
+
+    reminderReady: "REMINDER READY",
+    copyMessage: "Copy message",
+
+    askVoicePay: "ASK VOICEPAY",
+    askBusiness1: "Ask about your",
+    askBusiness2: "business.",
+    queryDescription:
+      "Search collections and pending payments using natural language.",
+
+    queryPlaceholder: "Who hasn't paid me?",
+    searchBusiness: "Search business",
+    voicePayAnswer: "VOICEPAY ANSWER",
+
+    activityHistory: "Activity history",
+    latestActions: "Latest actions",
+    noActivity: "No activity yet",
+
+    secureDemoPayment: "Secure demo payment",
+    loadingPayment: "Loading payment request...",
+    paymentRequest: "PAYMENT REQUEST",
+    from: "From",
+    invoice: "Invoice",
+    status: "Status",
+    pendingStatus: "Pending",
+    paySecurely: "Pay securely",
+    demoMode: "Demo mode · No real money will be charged",
+
+    paymentComplete: "PAYMENT COMPLETE",
+    paymentSuccessful: "Payment successful",
+    paymentRecorded:
+      "This payment has been recorded in VoicePay.",
+    backToVoicePay: "Back to VoicePay",
+
+    refreshTitle: "Refresh dashboard data",
+  },
+
+  ta: {
+    dashboard: "முகப்பலகை",
+    liveDemo: "நேரடி டெமோ",
+
+    welcomeTitle1: "VoicePay-க்கு",
+    welcomeTitle2: "வரவேற்கிறோம்.",
+    welcomeTagline: "ஒரே கட்டளையில் குரலிலிருந்து இன்வாய்ஸ் வரை.",
+    startVoicePay: "VoicePay தொடங்கு",
+
+    voiceInvoice: "குரல் இன்வாய்ஸ்",
+    generateHeading1: "உங்கள் குரலில்",
+    generateHeading2: "இன்வாய்ஸ் உருவாக்குங்கள்.",
+    generateDescription:
+      "இயல்பாகப் பேசுங்கள் அல்லது பரிவர்த்தனையை தட்டச்சு செய்யுங்கள். VoicePay உங்களுக்காக இன்வாய்ஸை தயார் செய்யும்.",
+
+    message: "செய்தி",
+    whatSold: "நீங்கள் என்ன விற்றீர்கள்?",
+    english: "ஆங்கிலம்",
+    tamil: "தமிழ்",
+
+    example:
+      "உதாரணம்: கணேஷுக்கு நாலு பாட்டில் ₹40 ஜிஎஸ்டி 12%",
+
+    speak: "பேசுங்கள்",
+    stop: "நிறுத்து",
+    generateInvoice: "இன்வாய்ஸ் உருவாக்கு",
+
+    step1: "இயல்பாகப் பேசுங்கள்",
+    step2: "விவரங்களை சரிபார்க்கவும்",
+    step3: "பணம் செலுத்தும் இணைப்பை அனுப்பவும்",
+
+    invoicePreview: "இன்வாய்ஸ் முன்னோட்டம்",
+    previewHeading1: "உருவாக்கப்பட்ட இன்வாய்ஸ்",
+    previewHeading2: "இங்கே தோன்றும்.",
+    previewDescription:
+      "பரிவர்த்தனையை பேசுங்கள் அல்லது தட்டச்சு செய்யுங்கள். VoicePay உருவாக்கிய இன்வாய்ஸ் இங்கே காட்டப்படும்.",
+
+    generatedInvoice: "உருவாக்கப்பட்ட இன்வாய்ஸ்",
+    ready: "தயார்",
+
+    invoiceId: "இன்வாய்ஸ் எண்",
+
+    customer: "வாடிக்கையாளர்",
+    productService: "பொருள் / சேவை",
+    quantity: "அளவு",
+    price: "விலை",
+    gst: "GST %",
+
+    editInvoice: "இன்வாய்ஸை திருத்து / புதுப்பி",
+
+    subtotal: "இடைமொத்தம்",
+    total: "மொத்தம்",
+
+    confirmCreate: "உறுதிசெய்து இன்வாய்ஸ் உருவாக்கு",
+    generatePaymentLink: "பணம் செலுத்தும் இணைப்பை உருவாக்கு",
+
+    paymentLinkReady: "பணம் செலுத்தும் இணைப்பு தயார்",
+    openPayment: "பணம் செலுத்து",
+
+    startAnotherInvoice: "புதிய இன்வாய்ஸ் தொடங்கு",
+
+    merchantDashboard: "வணிக முகப்பலகை",
+    overview: "மேலோட்டம்",
+    queries: "கேள்விகள்",
+    history: "வரலாறு",
+
+    totalCollected: "மொத்த வசூல்",
+    pendingAmount: "நிலுவை தொகை",
+    paidInvoices: "செலுத்தப்பட்ட இன்வாய்ஸ்கள்",
+    pending: "நிலுவை",
+
+    pendingPayments: "நிலுவை பணங்கள்",
+    pendingLabel: "நிலுவை",
+    noPendingPayments: "நிலுவை பணங்கள் இல்லை",
+    remind: "நினைவூட்டு",
+
+    reminderReady: "நினைவூட்டல் தயார்",
+    copyMessage: "செய்தியை நகலெடு",
+
+    askVoicePay: "VOICEPAY-யிடம் கேளுங்கள்",
+    askBusiness1: "உங்கள் வணிகத்தைப்",
+    askBusiness2: "பற்றி கேளுங்கள்.",
+    queryDescription:
+      "வசூல் மற்றும் நிலுவை பணங்களை இயல்பான மொழியில் கேட்டு அறியுங்கள்.",
+
+    queryPlaceholder: "யார் இன்னும் பணம் கொடுக்கவில்லை?",
+    searchBusiness: "வணிகத்தை தேடு",
+    voicePayAnswer: "VOICEPAY பதில்",
+
+    activityHistory: "செயல்பாட்டு வரலாறு",
+    latestActions: "சமீபத்திய செயல்கள்",
+    noActivity: "செயல்பாடுகள் எதுவும் இல்லை",
+
+    secureDemoPayment: "பாதுகாப்பான டெமோ கட்டணம்",
+    loadingPayment: "கட்டண விவரங்கள் ஏற்றப்படுகின்றன...",
+    paymentRequest: "கட்டண கோரிக்கை",
+    from: "வாடிக்கையாளர்",
+    invoice: "இன்வாய்ஸ்",
+    status: "நிலை",
+    pendingStatus: "நிலுவை",
+    paySecurely: "பாதுகாப்பாக செலுத்து",
+    demoMode: "டெமோ முறை · உண்மையான பணம் வசூலிக்கப்படாது",
+
+    paymentComplete: "கட்டணம் முடிந்தது",
+    paymentSuccessful: "கட்டணம் வெற்றிகரமாக முடிந்தது",
+    paymentRecorded:
+      "இந்த கட்டணம் VoicePay-ல் பதிவு செய்யப்பட்டுள்ளது.",
+    backToVoicePay: "VoicePay-க்கு திரும்பு",
+
+    refreshTitle: "முகப்பலகையை புதுப்பிக்கவும்",
+  },
+};
 
 function App() {
   const [started, setStarted] = useState(
@@ -13,55 +239,83 @@ function App() {
   const [activeDashboardTab, setActiveDashboardTab] =
     useState("overview");
 
-  const [voiceLanguage, setVoiceLanguage] = useState("en-IN");
+  const [voiceLanguage, setVoiceLanguage] = useState(
+    localStorage.getItem("voicepay_language") || "en-IN"
+  );
 
   const [voiceText, setVoiceText] = useState("");
-
   const [isListening, setIsListening] = useState(false);
 
+  const recognitionRef = useRef(null);
+
   const [customer, setCustomer] = useState("");
-
   const [product, setProduct] = useState("");
-
   const [quantity, setQuantity] = useState("");
-
   const [price, setPrice] = useState("");
-
   const [gst, setGst] = useState("");
 
   const [preview, setPreview] = useState(null);
 
-  const [createdInvoice, setCreatedInvoice] = useState(null);
+  const [createdInvoice, setCreatedInvoice] =
+    useState(null);
 
-  const [paymentLink, setPaymentLink] = useState(null);
+  const [paymentLink, setPaymentLink] =
+    useState(null);
 
-  const [dashboard, setDashboard] = useState(null);
+  const [dashboard, setDashboard] =
+    useState(null);
 
-  const [invoices, setInvoices] = useState([]);
+  const [invoices, setInvoices] =
+    useState([]);
 
-  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditLogs, setAuditLogs] =
+    useState([]);
 
-  const [businessQuery, setBusinessQuery] = useState("");
+  const [businessQuery, setBusinessQuery] =
+    useState("");
 
-  const [businessAnswer, setBusinessAnswer] = useState(null);
+  const [businessAnswer, setBusinessAnswer] =
+    useState(null);
 
-  const [isBusinessListening, setIsBusinessListening] =
+  const [
+    isBusinessListening,
+    setIsBusinessListening,
+  ] = useState(false);
+
+  const businessRecognitionRef =
+    useRef(null);
+
+  const [reminder, setReminder] =
+    useState(null);
+
+  const [
+    paymentPageData,
+    setPaymentPageData,
+  ] = useState(null);
+
+  const [
+    paymentPageLoading,
+    setPaymentPageLoading,
+  ] = useState(false);
+
+  const [isRefreshing, setIsRefreshing] =
     useState(false);
 
-  const [reminder, setReminder] = useState(null);
+  const [error, setError] =
+    useState("");
 
-  const [paymentPageData, setPaymentPageData] = useState(null);
+  const isTamil =
+    voiceLanguage === "ta-IN";
 
-  const [paymentPageLoading, setPaymentPageLoading] =
-    useState(false);
+  const t = isTamil
+    ? TRANSLATIONS.ta
+    : TRANSLATIONS.en;
 
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const currentPath =
+    window.location.pathname;
 
-  const [error, setError] = useState("");
-
-  const currentPath = window.location.pathname;
-
-  const isPaymentPage = currentPath.startsWith("/pay/");
+  const isPaymentPage =
+    currentPath.startsWith("/pay/");
 
   const paymentLinkId = isPaymentPage
     ? currentPath.split("/pay/")[1]
@@ -75,14 +329,32 @@ function App() {
     gst: Number(gst),
   };
 
+  const handleLanguageChange = (event) => {
+    const newLanguage =
+      event.target.value;
+
+    setVoiceLanguage(newLanguage);
+
+    localStorage.setItem(
+      "voicepay_language",
+      newLanguage
+    );
+  };
+
   const enterVoicePay = () => {
-    sessionStorage.setItem("voicepay_started", "true");
+    sessionStorage.setItem(
+      "voicepay_started",
+      "true"
+    );
 
     setStarted(true);
   };
 
   const goToMainWorkspace = () => {
-    sessionStorage.setItem("voicepay_started", "true");
+    sessionStorage.setItem(
+      "voicepay_started",
+      "true"
+    );
 
     window.location.href = "/";
   };
@@ -93,11 +365,14 @@ function App() {
         `${API_URL}/dashboard/summary`
       );
 
-      const data = await response.json();
+      const data =
+        await response.json();
 
       setDashboard(data);
     } catch {
-      setError("Unable to load dashboard.");
+      setError(
+        "Unable to load dashboard."
+      );
     }
   };
 
@@ -107,11 +382,16 @@ function App() {
         `${API_URL}/invoices`
       );
 
-      const data = await response.json();
+      const data =
+        await response.json();
 
-      setInvoices(data.invoices || []);
+      setInvoices(
+        data.invoices || []
+      );
     } catch {
-      setError("Unable to load invoices.");
+      setError(
+        "Unable to load invoices."
+      );
     }
   };
 
@@ -121,11 +401,16 @@ function App() {
         `${API_URL}/audit`
       );
 
-      const data = await response.json();
+      const data =
+        await response.json();
 
-      setAuditLogs(data.audit_logs || []);
+      setAuditLogs(
+        data.audit_logs || []
+      );
     } catch {
-      setError("Unable to load history.");
+      setError(
+        "Unable to load history."
+      );
     }
   };
 
@@ -150,41 +435,60 @@ function App() {
   };
 
   useEffect(() => {
-    if (started && !isPaymentPage) {
+    if (
+      started &&
+      !isPaymentPage
+    ) {
       refreshAll();
     }
-  }, [started, isPaymentPage]);
+  }, [
+    started,
+    isPaymentPage,
+  ]);
 
   useEffect(() => {
     if (!paymentLinkId) {
       return;
     }
 
-    const loadPaymentDetails = async () => {
-      setPaymentPageLoading(true);
-
-      setError("");
-
-      try {
-        const response = await fetch(
-          `${API_URL}/payment-link/${paymentLinkId}`
+    const loadPaymentDetails =
+      async () => {
+        setPaymentPageLoading(
+          true
         );
 
-        const data = await response.json();
+        setError("");
 
-        if (data.error) {
-          setError(data.error);
+        try {
+          const response =
+            await fetch(
+              `${API_URL}/payment-link/${paymentLinkId}`
+            );
 
-          return;
+          const data =
+            await response.json();
+
+          if (data.error) {
+            setError(
+              data.error
+            );
+
+            return;
+          }
+
+          setPaymentPageData(
+            data
+          );
+        } catch {
+          setError(
+            "Unable to load payment details."
+          );
+        } finally {
+          setPaymentPageLoading(
+            false
+          );
         }
-
-        setPaymentPageData(data);
-      } catch {
-        setError("Unable to load payment details.");
-      } finally {
-        setPaymentPageLoading(false);
-      }
-    };
+      };
 
     loadPaymentDetails();
   }, [paymentLinkId]);
@@ -204,467 +508,617 @@ function App() {
       return;
     }
 
-    const recognition = new SpeechRecognition();
+    if (
+      recognitionRef.current
+    ) {
+      return;
+    }
 
-    recognition.lang = voiceLanguage;
+    const recognition =
+      new SpeechRecognition();
 
-    recognition.interimResults = false;
+    recognitionRef.current =
+      recognition;
 
-    recognition.continuous = true;
+    recognition.lang =
+      voiceLanguage;
+
+    recognition.interimResults =
+      false;
+
+    recognition.continuous =
+      true;
 
     recognition.onstart = () => {
       setIsListening(true);
     };
 
-    recognition.onresult = (event) => {
+    recognition.onresult = (
+      event
+    ) => {
       let transcript = "";
 
-      for (let i = 0; i < event.results.length; i++) {
+      for (
+        let i = 0;
+        i < event.results.length;
+        i++
+      ) {
         transcript +=
-          event.results[i][0].transcript + " ";
+          event.results[i][0]
+            .transcript + " ";
       }
 
-      setVoiceText(transcript.trim());
+      setVoiceText(
+        transcript.trim()
+      );
     };
 
     recognition.onerror = () => {
       setError(
-        "Could not recognize your voice."
+        isTamil
+          ? "உங்கள் குரலை அடையாளம் காண முடியவில்லை."
+          : "Could not recognize your voice."
       );
 
       setIsListening(false);
+
+      recognitionRef.current =
+        null;
     };
 
     recognition.onend = () => {
       setIsListening(false);
+
+      recognitionRef.current =
+        null;
     };
 
     recognition.start();
   };
 
-  const startBusinessListening = () => {
-    setError("");
-
-    const SpeechRecognition =
-      window.SpeechRecognition ||
-      window.webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      setError(
-        "Speech recognition is not supported in this browser."
-      );
-
-      return;
+  const stopListening = () => {
+    if (
+      recognitionRef.current
+    ) {
+      recognitionRef.current.stop();
     }
 
-    const recognition = new SpeechRecognition();
+    recognitionRef.current =
+      null;
 
-    recognition.lang = voiceLanguage;
-
-    recognition.interimResults = false;
-
-    recognition.continuous = false;
-
-    recognition.onstart = () => {
-      setIsBusinessListening(true);
-    };
-
-    recognition.onresult = (event) => {
-      setBusinessQuery(
-        event.results[0][0].transcript
-      );
-    };
-
-    recognition.onend = () => {
-      setIsBusinessListening(false);
-    };
-
-    recognition.start();
+    setIsListening(false);
   };
 
-  const processVoiceCommand = async () => {
-    setError("");
-
-    setPreview(null);
-
-    setCreatedInvoice(null);
-
-    setPaymentLink(null);
-
-    if (!voiceText.trim()) {
-      setError(
-        "Speak or type an invoice command first."
-      );
-
-      return;
+  const toggleListening = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
     }
+  };
 
-    try {
-      const response = await fetch(
-        `${API_URL}/voice/parse`,
-        {
-          method: "POST",
+  const startBusinessListening =
+    () => {
+      setError("");
 
-          headers: {
-            "Content-Type": "application/json",
-          },
+      const SpeechRecognition =
+        window.SpeechRecognition ||
+        window.webkitSpeechRecognition;
 
-          body: JSON.stringify({
-            text: voiceText,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (data.error) {
-        setError(data.error);
+      if (!SpeechRecognition) {
+        setError(
+          isTamil
+            ? "இந்த உலாவியில் குரல் அடையாளம் காணும் வசதி இல்லை."
+            : "Speech recognition is not supported in this browser."
+        );
 
         return;
       }
 
-      setCustomer(data.customer);
+      if (
+        businessRecognitionRef.current
+      ) {
+        return;
+      }
 
-      setProduct(data.product);
+      const recognition =
+        new SpeechRecognition();
 
-      setQuantity(
-        data.quantity.toString()
-      );
+      businessRecognitionRef.current =
+        recognition;
 
-      setPrice(
-        data.price.toString()
-      );
+      recognition.lang =
+        voiceLanguage;
 
-      setGst(
-        data.gst.toString()
-      );
+      recognition.interimResults =
+        false;
 
-      const previewResponse = await fetch(
-        `${API_URL}/invoice/preview`,
-        {
-          method: "POST",
+      recognition.continuous =
+        false;
 
-          headers: {
-            "Content-Type": "application/json",
-          },
+      recognition.onstart =
+        () => {
+          setIsBusinessListening(
+            true
+          );
+        };
 
-          body: JSON.stringify({
-            customer: data.customer,
+      recognition.onresult = (
+        event
+      ) => {
+        setBusinessQuery(
+          event.results[0][0]
+            .transcript
+        );
+      };
 
-            product: data.product,
+      recognition.onerror =
+        () => {
+          setIsBusinessListening(
+            false
+          );
 
-            quantity: Number(
-              data.quantity
-            ),
+          businessRecognitionRef.current =
+            null;
+        };
 
-            price: Number(
-              data.price
-            ),
+      recognition.onend =
+        () => {
+          setIsBusinessListening(
+            false
+          );
 
-            gst: Number(
-              data.gst
-            ),
-          }),
-        }
-      );
+          businessRecognitionRef.current =
+            null;
+        };
 
-      const previewData =
-        await previewResponse.json();
+      recognition.start();
+    };
 
-      if (previewData.error) {
+  const processVoiceCommand =
+    async () => {
+      stopListening();
+
+      setError("");
+
+      setPreview(null);
+
+      setCreatedInvoice(null);
+
+      setPaymentLink(null);
+
+      if (!voiceText.trim()) {
         setError(
+          isTamil
+            ? "முதலில் பேசுங்கள் அல்லது இன்வாய்ஸ் கட்டளையை தட்டச்சு செய்யுங்கள்."
+            : "Speak or type an invoice command first."
+        );
+
+        return;
+      }
+
+      try {
+        const response =
+          await fetch(
+            `${API_URL}/voice/parse`,
+            {
+              method: "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+
+              body: JSON.stringify({
+                text: voiceText,
+              }),
+            }
+          );
+
+        const data =
+          await response.json();
+
+        if (data.error) {
+          setError(
+            data.error
+          );
+
+          return;
+        }
+
+        setCustomer(
+          data.customer
+        );
+
+        setProduct(
+          data.product
+        );
+
+        setQuantity(
+          data.quantity.toString()
+        );
+
+        setPrice(
+          data.price.toString()
+        );
+
+        setGst(
+          data.gst.toString()
+        );
+
+        const previewResponse =
+          await fetch(
+            `${API_URL}/invoice/preview`,
+            {
+              method: "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+
+              body: JSON.stringify({
+                customer:
+                  data.customer,
+
+                product:
+                  data.product,
+
+                quantity:
+                  Number(
+                    data.quantity
+                  ),
+
+                price:
+                  Number(
+                    data.price
+                  ),
+
+                gst:
+                  Number(
+                    data.gst
+                  ),
+              }),
+            }
+          );
+
+        const previewData =
+          await previewResponse.json();
+
+        if (
           previewData.error
-        );
+        ) {
+          setError(
+            previewData.error
+          );
 
-        return;
-      }
-
-      setPreview(
-        previewData
-      );
-    } catch {
-      setError(
-        "Unable to process invoice command."
-      );
-    }
-  };
-
-  const updatePreview = async () => {
-    setError("");
-
-    try {
-      const response = await fetch(
-        `${API_URL}/invoice/preview`,
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type": "application/json",
-          },
-
-          body: JSON.stringify(
-            invoiceData
-          ),
+          return;
         }
-      );
 
-      const data = await response.json();
-
-      if (data.error) {
-        setError(
-          data.error
+        setPreview(
+          previewData
         );
-
-        return;
+      } catch {
+        setError(
+          isTamil
+            ? "இன்வாய்ஸ் கட்டளையை செயலாக்க முடியவில்லை."
+            : "Unable to process invoice command."
+        );
       }
+    };
 
-      setPreview(
-        data
-      );
+  const updatePreview =
+    async () => {
+      setError("");
 
-      setCreatedInvoice(
-        null
-      );
+      try {
+        const response =
+          await fetch(
+            `${API_URL}/invoice/preview`,
+            {
+              method: "POST",
 
-      setPaymentLink(
-        null
-      );
-    } catch {
-      setError(
-        "Unable to update invoice."
-      );
-    }
-  };
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
 
-  const createInvoice = async () => {
-    setError("");
+              body:
+                JSON.stringify(
+                  invoiceData
+                ),
+            }
+          );
 
-    try {
-      const response = await fetch(
-        `${API_URL}/invoice/create`,
-        {
-          method: "POST",
+        const data =
+          await response.json();
 
-          headers: {
-            "Content-Type": "application/json",
-          },
+        if (data.error) {
+          setError(
+            data.error
+          );
 
-          body: JSON.stringify(
-            invoiceData
-          ),
+          return;
         }
-      );
 
-      const data = await response.json();
+        setPreview(data);
 
-      if (data.error) {
-        setError(
-          data.error
+        setCreatedInvoice(
+          null
         );
 
-        return;
+        setPaymentLink(
+          null
+        );
+      } catch {
+        setError(
+          isTamil
+            ? "இன்வாய்ஸை புதுப்பிக்க முடியவில்லை."
+            : "Unable to update invoice."
+        );
       }
+    };
 
-      setCreatedInvoice(
-        data
-      );
+  const createInvoice =
+    async () => {
+      setError("");
 
-      await refreshAll();
-    } catch {
-      setError(
-        "Unable to create invoice."
-      );
-    }
-  };
+      try {
+        const response =
+          await fetch(
+            `${API_URL}/invoice/create`,
+            {
+              method: "POST",
 
-  const generatePaymentLink = async () => {
-    setError("");
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
 
-    if (!createdInvoice) {
-      setError(
-        "Create an invoice first."
-      );
+              body:
+                JSON.stringify(
+                  invoiceData
+                ),
+            }
+          );
 
-      return;
-    }
+        const data =
+          await response.json();
 
-    try {
-      const response = await fetch(
-        `${API_URL}/payment-link/create`,
-        {
-          method: "POST",
+        if (data.error) {
+          setError(
+            data.error
+          );
 
-          headers: {
-            "Content-Type": "application/json",
-          },
-
-          body: JSON.stringify({
-            invoice_id:
-              createdInvoice.invoice_id,
-          }),
+          return;
         }
-      );
 
-      const data = await response.json();
+        setCreatedInvoice(
+          data
+        );
 
-      if (data.error) {
+        await refreshAll();
+      } catch {
         setError(
-          data.error
+          isTamil
+            ? "இன்வாய்ஸ் உருவாக்க முடியவில்லை."
+            : "Unable to create invoice."
+        );
+      }
+    };
+
+  const generatePaymentLink =
+    async () => {
+      setError("");
+
+      if (!createdInvoice) {
+        setError(
+          isTamil
+            ? "முதலில் இன்வாய்ஸை உருவாக்குங்கள்."
+            : "Create an invoice first."
         );
 
         return;
       }
 
-      setPaymentLink(
-        data
-      );
+      try {
+        const response =
+          await fetch(
+            `${API_URL}/payment-link/create`,
+            {
+              method: "POST",
 
-      await loadAuditLogs();
-    } catch {
-      setError(
-        "Unable to generate payment link."
-      );
-    }
-  };
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
 
-  const completePayment = async () => {
-    setError("");
+              body: JSON.stringify({
+                invoice_id:
+                  createdInvoice.invoice_id,
+              }),
+            }
+          );
 
-    try {
-      const response = await fetch(
-        `${API_URL}/payment-link/${paymentLinkId}/pay`,
-        {
-          method: "POST",
+        const data =
+          await response.json();
+
+        if (data.error) {
+          setError(
+            data.error
+          );
+
+          return;
         }
-      );
 
-      const data = await response.json();
-
-      if (data.error) {
-        setError(
-          data.error
+        setPaymentLink(
+          data
         );
 
-        return;
+        await loadAuditLogs();
+      } catch {
+        setError(
+          isTamil
+            ? "பணம் செலுத்தும் இணைப்பை உருவாக்க முடியவில்லை."
+            : "Unable to generate payment link."
+        );
       }
+    };
 
-      setPaymentPageData(
-        (previous) => ({
-          ...previous,
+  const completePayment =
+    async () => {
+      setError("");
 
-          payment_status:
-            "paid",
-        })
-      );
-    } catch {
-      setError(
-        "Unable to complete payment."
-      );
-    }
-  };
+      try {
+        const response =
+          await fetch(
+            `${API_URL}/payment-link/${paymentLinkId}/pay`,
+            {
+              method: "POST",
+            }
+          );
 
-  const askBusinessQuery = async () => {
-    setError("");
+        const data =
+          await response.json();
 
-    setBusinessAnswer(
-      null
-    );
+        if (data.error) {
+          setError(
+            data.error
+          );
 
-    if (!businessQuery.trim()) {
-      setError(
-        "Ask VoicePay a question."
-      );
-
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `${API_URL}/business/query`,
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type": "application/json",
-          },
-
-          body: JSON.stringify({
-            text: businessQuery,
-          }),
+          return;
         }
-      );
 
-      const data = await response.json();
+        setPaymentPageData(
+          (previous) => ({
+            ...previous,
 
-      if (data.error) {
+            payment_status:
+              "paid",
+          })
+        );
+      } catch {
         setError(
-          data.error
+          isTamil
+            ? "கட்டணத்தை முடிக்க முடியவில்லை."
+            : "Unable to complete payment."
+        );
+      }
+    };
+
+  const askBusinessQuery =
+    async () => {
+      setError("");
+
+      setBusinessAnswer(null);
+
+      if (
+        !businessQuery.trim()
+      ) {
+        setError(
+          isTamil
+            ? "VoicePay-யிடம் ஒரு கேள்வி கேளுங்கள்."
+            : "Ask VoicePay a question."
         );
 
         return;
       }
 
-      setBusinessAnswer(
-        data
-      );
+      try {
+        const response =
+          await fetch(
+            `${API_URL}/business/query`,
+            {
+              method: "POST",
 
-      await loadAuditLogs();
-    } catch {
-      setError(
-        "Unable to process business query."
-      );
-    }
-  };
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
 
-  const createReminder = async (
-    invoiceId
-  ) => {
-    setError("");
+              body: JSON.stringify({
+                text:
+                  businessQuery,
+              }),
+            }
+          );
 
-    setReminder(
-      null
-    );
+        const data =
+          await response.json();
 
-    try {
-      const response = await fetch(
-        `${API_URL}/reminder/create`,
-        {
-          method: "POST",
+        if (data.error) {
+          setError(
+            data.error
+          );
 
-          headers: {
-            "Content-Type": "application/json",
-          },
-
-          body: JSON.stringify({
-            invoice_id:
-              invoiceId,
-          }),
+          return;
         }
-      );
 
-      const data = await response.json();
-
-      if (data.error) {
-        setError(
-          data.error
+        setBusinessAnswer(
+          data
         );
 
-        return;
+        await loadAuditLogs();
+      } catch {
+        setError(
+          isTamil
+            ? "வணிகக் கேள்வியை செயலாக்க முடியவில்லை."
+            : "Unable to process business query."
+        );
       }
+    };
 
-      setReminder(
-        data
-      );
+  const createReminder =
+    async (invoiceId) => {
+      setError("");
 
-      await loadAuditLogs();
-    } catch {
-      setError(
-        "Unable to prepare reminder."
-      );
-    }
-  };
+      setReminder(null);
+
+      try {
+        const response =
+          await fetch(
+            `${API_URL}/reminder/create`,
+            {
+              method: "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+
+              body: JSON.stringify({
+                invoice_id:
+                  invoiceId,
+              }),
+            }
+          );
+
+        const data =
+          await response.json();
+
+        if (data.error) {
+          setError(
+            data.error
+          );
+
+          return;
+        }
+
+        setReminder(data);
+
+        await loadAuditLogs();
+      } catch {
+        setError(
+          isTamil
+            ? "நினைவூட்டலை தயார் செய்ய முடியவில்லை."
+            : "Unable to prepare reminder."
+        );
+      }
+    };
 
   const resetInvoice = () => {
+    stopListening();
+
     setVoiceText("");
 
     setCustomer("");
@@ -705,14 +1159,14 @@ function App() {
               </strong>
 
               <span>
-                Secure demo payment
+                {t.secureDemoPayment}
               </span>
             </div>
           </div>
 
           {paymentPageLoading && (
             <p className="loading-text">
-              Loading payment request...
+              {t.loadingPayment}
             </p>
           )}
 
@@ -728,7 +1182,7 @@ function App() {
               <>
                 <div className="payment-amount">
                   <span>
-                    PAYMENT REQUEST
+                    {t.paymentRequest}
                   </span>
 
                   <h1>
@@ -739,7 +1193,8 @@ function App() {
                   </h1>
 
                   <p>
-                    From{" "}
+                    {t.from}{" "}
+
                     <strong>
                       {
                         paymentPageData.customer
@@ -751,7 +1206,7 @@ function App() {
                 <div className="payment-meta">
                   <div>
                     <span>
-                      Invoice
+                      {t.invoice}
                     </span>
 
                     <strong>
@@ -763,20 +1218,22 @@ function App() {
 
                   <div>
                     <span>
-                      Status
+                      {t.status}
                     </span>
 
                     <strong>
-                      Pending
+                      {t.pendingStatus}
                     </strong>
                   </div>
                 </div>
 
                 <button
                   className="gradient-button full-button"
-                  onClick={completePayment}
+                  onClick={
+                    completePayment
+                  }
                 >
-                  Pay securely
+                  {t.paySecurely}
 
                   <span>
                     →
@@ -784,7 +1241,7 @@ function App() {
                 </button>
 
                 <p className="demo-text">
-                  Demo mode · No real money will be charged
+                  {t.demoMode}
                 </p>
               </>
             )}
@@ -798,15 +1255,15 @@ function App() {
                 </div>
 
                 <span>
-                  PAYMENT COMPLETE
+                  {t.paymentComplete}
                 </span>
 
                 <h1>
-                  Payment successful
+                  {t.paymentSuccessful}
                 </h1>
 
                 <p>
-                  This payment has been recorded in VoicePay.
+                  {t.paymentRecorded}
                 </p>
 
                 <div className="paid-amount">
@@ -818,9 +1275,11 @@ function App() {
 
                 <button
                   className="gradient-button full-button back-home-button"
-                  onClick={goToMainWorkspace}
+                  onClick={
+                    goToMainWorkspace
+                  }
                 >
-                  Back to VoicePay
+                  {t.backToVoicePay}
 
                   <span>
                     →
@@ -862,29 +1321,29 @@ function App() {
           <div className="welcome-demo">
             <span></span>
 
-            LIVE DEMO
+            {t.liveDemo}
           </div>
         </div>
 
         <div className="welcome-content welcome-simple">
           <h1>
-            Welcome to
+            {t.welcomeTitle1}
             <br />
 
             <span>
-              VoicePay.
+              {t.welcomeTitle2}
             </span>
           </h1>
 
           <p className="welcome-tagline">
-            From voice to invoice in one command.
+            {t.welcomeTagline}
           </p>
 
           <button
             className="start-button"
             onClick={enterVoicePay}
           >
-            Start VoicePay
+            {t.startVoicePay}
 
             <span>
               →
@@ -921,7 +1380,7 @@ function App() {
             ☰
           </span>
 
-          Dashboard
+          {t.dashboard}
         </button>
 
         <div className="topbar-brand">
@@ -945,7 +1404,7 @@ function App() {
             className="topbar-button icon-button"
             onClick={refreshAll}
             disabled={isRefreshing}
-            title="Refresh dashboard data"
+            title={t.refreshTitle}
           >
             {isRefreshing
               ? "…"
@@ -955,10 +1414,8 @@ function App() {
           <select
             className="language-toggle"
             value={voiceLanguage}
-            onChange={(event) =>
-              setVoiceLanguage(
-                event.target.value
-              )
+            onChange={
+              handleLanguageChange
             }
           >
             <option value="en-IN">
@@ -975,18 +1432,17 @@ function App() {
       <main className="workspace">
         <section className="workspace-heading">
           <span>
-            VOICE INVOICE
+            {t.voiceInvoice}
           </span>
 
           <h1>
-            Generate an invoice
+            {t.generateHeading1}
             <br />
-            with your voice.
+            {t.generateHeading2}
           </h1>
 
           <p>
-            Speak naturally or type the transaction.
-            VoicePay will prepare the invoice for you.
+            {t.generateDescription}
           </p>
         </section>
 
@@ -995,21 +1451,20 @@ function App() {
             <div className="card-heading">
               <div>
                 <span className="section-tag">
-                  MESSAGE
+                  {t.message}
                 </span>
 
                 <h2>
-                  What did you sell?
+                  {t.whatSold}
                 </h2>
               </div>
 
               <div className="language-status">
                 <span></span>
 
-                {voiceLanguage ===
-                "ta-IN"
-                  ? "Tamil"
-                  : "English"}
+                {isTamil
+                  ? t.tamil
+                  : t.english}
               </div>
             </div>
 
@@ -1022,10 +1477,7 @@ function App() {
                   )
                 }
                 placeholder={
-                  voiceLanguage ===
-                  "ta-IN"
-                    ? "Example: கணேஷுக்கு நாலு பாட்டில் ₹40 ஜிஎஸ்டி 12%"
-                    : "Example: Create invoice for Arun Kumar 2 water bottles at 50 rupees GST 18 percent"
+                  t.example
                 }
               />
 
@@ -1035,24 +1487,30 @@ function App() {
                     ? "speak-button listening"
                     : "speak-button"
                 }
-                onClick={startListening}
+                onClick={
+                  toggleListening
+                }
               >
                 <span>
-                  🎙
+                  {isListening
+                    ? "■"
+                    : "🎙"}
                 </span>
 
                 {isListening
-                  ? "Listening..."
-                  : "Speak"}
+                  ? t.stop
+                  : t.speak}
               </button>
             </div>
 
             <div className="command-actions">
               <button
                 className="gradient-button"
-                onClick={processVoiceCommand}
+                onClick={
+                  processVoiceCommand
+                }
               >
-                Generate invoice
+                {t.generateInvoice}
 
                 <span>
                   →
@@ -1073,7 +1531,7 @@ function App() {
                 </span>
 
                 <p>
-                  Speak naturally
+                  {t.step1}
                 </p>
               </div>
 
@@ -1083,7 +1541,7 @@ function App() {
                 </span>
 
                 <p>
-                  Review details
+                  {t.step2}
                 </p>
               </div>
 
@@ -1093,7 +1551,7 @@ function App() {
                 </span>
 
                 <p>
-                  Send payment link
+                  {t.step3}
                 </p>
               </div>
             </div>
@@ -1107,18 +1565,17 @@ function App() {
                 </div>
 
                 <span className="section-tag">
-                  INVOICE PREVIEW
+                  {t.invoicePreview}
                 </span>
 
                 <h2>
-                  Your generated invoice
+                  {t.previewHeading1}
                   <br />
-                  appears here.
+                  {t.previewHeading2}
                 </h2>
 
                 <p>
-                  Speak or type a transaction and VoicePay
-                  will place the generated invoice here.
+                  {t.previewDescription}
                 </p>
 
                 <div className="placeholder-lines">
@@ -1134,7 +1591,7 @@ function App() {
                 <div className="invoice-top">
                   <div>
                     <span className="section-tag">
-                      GENERATED INVOICE
+                      {t.generatedInvoice}
                     </span>
 
                     <h2>
@@ -1143,14 +1600,14 @@ function App() {
                   </div>
 
                   <div className="success-pill">
-                    ✓ Ready
+                    ✓ {t.ready}
                   </div>
                 </div>
 
                 {createdInvoice && (
                   <div className="invoice-id-card">
                     <span>
-                      INVOICE ID
+                      {t.invoiceId}
                     </span>
 
                     <strong>
@@ -1164,7 +1621,7 @@ function App() {
                 <div className="invoice-form-grid">
                   <label className="wide-field">
                     <span>
-                      Customer
+                      {t.customer}
                     </span>
 
                     <input
@@ -1179,7 +1636,7 @@ function App() {
 
                   <label className="wide-field">
                     <span>
-                      Product / Service
+                      {t.productService}
                     </span>
 
                     <input
@@ -1194,7 +1651,7 @@ function App() {
 
                   <label>
                     <span>
-                      Quantity
+                      {t.quantity}
                     </span>
 
                     <input
@@ -1210,7 +1667,7 @@ function App() {
 
                   <label>
                     <span>
-                      Price
+                      {t.price}
                     </span>
 
                     <input
@@ -1226,7 +1683,7 @@ function App() {
 
                   <label>
                     <span>
-                      GST %
+                      {t.gst}
                     </span>
 
                     <input
@@ -1245,13 +1702,13 @@ function App() {
                   className="edit-button"
                   onClick={updatePreview}
                 >
-                  ✎ Edit / Update Invoice
+                  ✎ {t.editInvoice}
                 </button>
 
                 <div className="invoice-totals">
                   <div>
                     <span>
-                      Subtotal
+                      {t.subtotal}
                     </span>
 
                     <strong>
@@ -1277,7 +1734,7 @@ function App() {
 
                   <div className="grand-total">
                     <span>
-                      Total
+                      {t.total}
                     </span>
 
                     <strong>
@@ -1292,9 +1749,11 @@ function App() {
                 {!createdInvoice && (
                   <button
                     className="gradient-button full-button"
-                    onClick={createInvoice}
+                    onClick={
+                      createInvoice
+                    }
                   >
-                    Confirm & create invoice
+                    {t.confirmCreate}
 
                     <span>
                       →
@@ -1306,9 +1765,13 @@ function App() {
                   !paymentLink && (
                     <button
                       className="gradient-button full-button"
-                      onClick={generatePaymentLink}
+                      onClick={
+                        generatePaymentLink
+                      }
                     >
-                      Generate payment link
+                      {
+                        t.generatePaymentLink
+                      }
 
                       <span>
                         →
@@ -1320,7 +1783,9 @@ function App() {
                   <div className="payment-link-box">
                     <div>
                       <span>
-                        PAYMENT LINK READY
+                        {
+                          t.paymentLinkReady
+                        }
                       </span>
 
                       <strong>
@@ -1338,7 +1803,7 @@ function App() {
                       target="_blank"
                       rel="noreferrer"
                     >
-                      Open payment
+                      {t.openPayment}
 
                       <span>
                         ↗
@@ -1349,9 +1814,14 @@ function App() {
 
                 <button
                   className="new-invoice-link"
-                  onClick={resetInvoice}
+                  onClick={
+                    resetInvoice
+                  }
                 >
-                  + Start another invoice
+                  +{" "}
+                  {
+                    t.startAnotherInvoice
+                  }
                 </button>
               </div>
             )}
@@ -1374,7 +1844,9 @@ function App() {
             <div className="drawer-header">
               <div>
                 <span className="section-tag">
-                  MERCHANT DASHBOARD
+                  {
+                    t.merchantDashboard
+                  }
                 </span>
 
                 <h2>
@@ -1408,7 +1880,7 @@ function App() {
                   )
                 }
               >
-                Overview
+                {t.overview}
               </button>
 
               <button
@@ -1424,7 +1896,7 @@ function App() {
                   )
                 }
               >
-                Queries
+                {t.queries}
               </button>
 
               <button
@@ -1440,7 +1912,7 @@ function App() {
                   )
                 }
               >
-                History
+                {t.history}
               </button>
             </div>
 
@@ -1450,7 +1922,9 @@ function App() {
                 <div className="dashboard-stat-grid">
                   <div className="glass-stat">
                     <span>
-                      Total collected
+                      {
+                        t.totalCollected
+                      }
                     </span>
 
                     <strong>
@@ -1464,7 +1938,9 @@ function App() {
 
                   <div className="glass-stat">
                     <span>
-                      Pending amount
+                      {
+                        t.pendingAmount
+                      }
                     </span>
 
                     <strong>
@@ -1478,7 +1954,9 @@ function App() {
 
                   <div className="glass-stat">
                     <span>
-                      Paid invoices
+                      {
+                        t.paidInvoices
+                      }
                     </span>
 
                     <strong>
@@ -1491,7 +1969,7 @@ function App() {
 
                   <div className="glass-stat">
                     <span>
-                      Pending
+                      {t.pending}
                     </span>
 
                     <strong>
@@ -1506,14 +1984,16 @@ function App() {
                 <div className="drawer-section">
                   <div className="drawer-section-title">
                     <h3>
-                      Pending payments
+                      {
+                        t.pendingPayments
+                      }
                     </h3>
 
                     <span>
                       {
                         pendingInvoices.length
                       }{" "}
-                      pending
+                      {t.pendingLabel}
                     </span>
                   </div>
 
@@ -1521,7 +2001,10 @@ function App() {
                     {pendingInvoices.length ===
                     0 ? (
                       <div className="empty-dashboard">
-                        ✓ No pending payments
+                        ✓{" "}
+                        {
+                          t.noPendingPayments
+                        }
                       </div>
                     ) : (
                       pendingInvoices
@@ -1570,7 +2053,7 @@ function App() {
                                   )
                                 }
                               >
-                                Remind
+                                {t.remind}
                               </button>
                             </div>
                           )
@@ -1582,7 +2065,9 @@ function App() {
                 {reminder && (
                   <div className="reminder-box">
                     <span>
-                      REMINDER READY
+                      {
+                        t.reminderReady
+                      }
                     </span>
 
                     <p>
@@ -1598,7 +2083,9 @@ function App() {
                         )
                       }
                     >
-                      Copy message
+                      {
+                        t.copyMessage
+                      }
                     </button>
                   </div>
                 )}
@@ -1610,18 +2097,23 @@ function App() {
               <div className="drawer-content">
                 <div className="query-hero">
                   <span className="section-tag">
-                    ASK VOICEPAY
+                    {t.askVoicePay}
                   </span>
 
                   <h3>
-                    Ask about your
+                    {
+                      t.askBusiness1
+                    }
                     <br />
-                    business.
+                    {
+                      t.askBusiness2
+                    }
                   </h3>
 
                   <p>
-                    Search collections and pending payments
-                    using natural language.
+                    {
+                      t.queryDescription
+                    }
                   </p>
                 </div>
 
@@ -1635,7 +2127,9 @@ function App() {
                         event.target.value
                       )
                     }
-                    placeholder="Who hasn't paid me?"
+                    placeholder={
+                      t.queryPlaceholder
+                    }
                   />
 
                   <button
@@ -1649,33 +2143,13 @@ function App() {
                   </button>
                 </div>
 
-                <div className="query-examples">
-                  <button
-                    onClick={() =>
-                      setBusinessQuery(
-                        "Who hasn't paid me?"
-                      )
-                    }
-                  >
-                    Who hasn't paid me?
-                  </button>
-
-                  <button
-                    onClick={() =>
-                      setBusinessQuery(
-                        "How much did I collect?"
-                      )
-                    }
-                  >
-                    How much did I collect?
-                  </button>
-                </div>
-
                 <button
-                  className="gradient-button full-button"
-                  onClick={askBusinessQuery}
+                  className="gradient-button full-button query-search-button"
+                  onClick={
+                    askBusinessQuery
+                  }
                 >
-                  Search business
+                  {t.searchBusiness}
 
                   <span>
                     →
@@ -1685,7 +2159,9 @@ function App() {
                 {businessAnswer && (
                   <div className="query-answer">
                     <span>
-                      VOICEPAY ANSWER
+                      {
+                        t.voicePayAnswer
+                      }
                     </span>
 
                     <p>
@@ -1703,11 +2179,15 @@ function App() {
               <div className="drawer-content">
                 <div className="drawer-section-title">
                   <h3>
-                    Activity history
+                    {
+                      t.activityHistory
+                    }
                   </h3>
 
                   <span>
-                    Latest actions
+                    {
+                      t.latestActions
+                    }
                   </span>
                 </div>
 
@@ -1715,7 +2195,7 @@ function App() {
                   {auditLogs.length ===
                   0 ? (
                     <div className="empty-dashboard">
-                      No activity yet
+                      {t.noActivity}
                     </div>
                   ) : (
                     auditLogs
