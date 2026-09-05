@@ -1,16 +1,94 @@
-# React + Vite
+# 🎙️ VoicePay AI
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**VoicePay AI** is a multilingual voice-powered payment assistant designed for small merchants.
 
-Currently, two official plugins are available:
+It allows merchants to create invoices, generate payment requests, track collections, check pending payments, and query their transaction data using simple voice or text commands.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+> **From voice to invoice in one command.**
 
-## React Compiler
+---
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 🚀 Problem
 
-## Expanding the ESLint configuration
+Small merchants often spend time manually creating invoices, tracking customer payments, and checking pending collections.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Traditional payment dashboards can also be difficult to use quickly while managing customers.
+
+VoicePay AI simplifies this workflow by allowing merchants to interact with their payment system using natural voice commands.
+
+---
+
+## 💡 Solution
+
+A merchant can simply say:
+
+> "Create invoice for Arun Kumar 2 water bottles at 50 rupees GST 18 percent"
+
+or use Tamil:
+
+> "கணேஷுக்கு நாலு பாட்டில் ₹40 ஜிஎஸ்டி 12%"
+
+VoicePay processes the command, extracts the transaction details, prepares an invoice, and allows the merchant to generate a payment link.
+
+---
+
+## ✨ Features
+
+- 🎙️ Voice-based invoice creation
+- 🌐 English and Tamil voice support
+- 🇮🇳 Complete English/Tamil UI switching
+- 🧾 Automatic invoice generation
+- ✏️ Invoice review and editing
+- 💳 Payment link generation
+- ✅ Demo payment simulation
+- 📊 Merchant dashboard
+- 💰 Collection and pending-payment tracking
+- 🔍 Natural-language business queries
+- 🔔 Customer payment reminders
+- 📜 Activity and audit history
+
+---
+
+## 🛠️ Tech Stack
+
+### Frontend
+- React
+- Vite
+- JavaScript
+- CSS
+- Web Speech API
+
+### Backend
+- Python
+- FastAPI
+- SQLite
+- REST API
+
+### Deployment
+- Netlify — Frontend
+- Render — Backend
+
+---
+
+## 🧠 How It Works
+
+```text
+Merchant Voice / Text
+        ↓
+Browser Speech Recognition
+        ↓
+Transaction Command
+        ↓
+FastAPI Backend
+        ↓
+Rule-Based Entity Extraction
+        ↓
+Customer + Product + Quantity + Price + GST
+        ↓
+Invoice Preview
+        ↓
+Invoice Creation
+        ↓
+Payment Link
+        ↓
+Payment Status & Dashboard
